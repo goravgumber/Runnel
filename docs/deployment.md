@@ -115,7 +115,7 @@ Recruiter Browser / Public Clients
 ┌──────────────────────────────┐ ┌──────────────────────────────┐
 │ Upstash Redis (Free Tier)    │ │ MongoDB Atlas (M0 Free Tier) │
 │  • Native Redis over TCP/TLS │ │  • MongoDB 8.0 cluster       │
-│  • 10,000 commands / day     │ │  • 512 MB storage            │
+│  • Free quota (upstash.com)  │ │  • 512 MB storage            │
 │  • BullMQ & Distributed Lock │ │  • Shared RAM & CPU          │
 └──────────────────────────────┘ └──────────────────────────────┘
 ```
@@ -132,7 +132,8 @@ Recruiter Browser / Public Clients
    - Cluster tier: M0 Sandbox (512 MB storage, shared RAM, MongoDB 8.0).
    - Region: Select an AWS region close to your Render deployment (e.g., `us-west-2` Oregon or `eu-central-1` Frankfurt).
 3. **Upstash Redis Account (Free Tier):**
-   - Free plan: 10,000 commands per day, maximum 256 MB storage.
+   - Free plan: Per [Upstash Redis Pricing](https://upstash.com/pricing/redis), the current free tier provides up to **500,000 commands per month** with a 100 MB data size limit and standard bandwidth caps.
+   - *Quota & Limit Verification:* Always check active limits, storage bounds, and quotas in your actual Upstash dashboard, as provider pricing and free tiers can change over time.
    - Connection type: Native Redis TCP over TLS (`rediss://...`).
 
 ---
@@ -144,13 +145,23 @@ Recruiter Browser / Public Clients
 1. Log in to [MongoDB Atlas](https://cloud.mongodb.com/).
 2. Click **Create Cluster**, choose the **M0 Free (Shared)** tier, and select the AWS region matching your backend (e.g. `us-west-2` Oregon).
 3. Under **Security → Database Access**:
-   - Create a new Database User (e.g. `runnel_user`).
+   - Create a dedicated Database User (e.g. `runnel_user`).
    - Assign authentication method: **Password** (generate a secure 32-character random string).
-   - Assign database role: **Read and write to any database** or specifically `readWrite` on `runnel`.
+   - Scope permissions strictly: assign role `readWrite` specifically on the `runnel` database (avoid cluster-wide administrative roles).
 4. Under **Security → Network Access**:
    - Click **Add IP Address**.
-   - Select **Allow Access from Anywhere (`0.0.0.0/0`)**.
-   - *Security Note:* Render's free tier uses dynamic outbound IP addresses that shift across shared hosting nodes. While `0.0.0.0/0` is necessary for connectivity, security is maintained through SCRAM-SHA-256 authentication, strict password complexity, and TLS encryption in transit.
+   - **Preferred Configuration (Regional Outbound CIDR Ranges):**
+     * Render publishes regional outbound IP CIDR blocks at [Render Outbound IP Addresses](https://render.com/docs/outbound-ip-addresses).
+     * In the Render Dashboard, open your backend service, open the **Connect** dropdown in the upper right corner, and select the **Outbound** tab to copy the regional IP ranges for your deployment region.
+     * Add each applicable regional CIDR range to the Atlas allowlist (e.g., for Oregon: `44.229.176.0/20`, `54.186.208.0/20`, etc.).
+     * *Shared Infrastructure Note:* Render Free services use shared regional IP blocks rather than exclusive static IPs (dedicated IPs require a paid workspace add-on). Scoping access to Render's regional CIDR blocks restricts connectivity to Render's regional infrastructure rather than opening the database to the entire internet.
+   - **Temporary Exception Fallback (`0.0.0.0/0`):**
+     * If regional routing or DNS discovery causes initial connection timeouts during provisioning, `0.0.0.0/0` (Allow Access from Anywhere) may be used as a **deliberate temporary exception** during initial setup.
+     * When using `0.0.0.0/0`, security is anchored by:
+       1. Scoped user privileges (dedicated user restricted to `readWrite` on `runnel`).
+       2. SCRAM-SHA-256 authentication with high-entropy (32+ character) random password.
+       3. TLS encryption in transit enforced by the `mongodb+srv://` protocol.
+     * Transition back to narrower regional CIDR ranges once connectivity is verified.
 5. Click **Connect → Drivers → Node.js** and copy the connection string:
    ```text
    mongodb+srv://runnel_user:<PASSWORD>@cluster0.abcde.mongodb.net/runnel?retryWrites=true&w=majority
@@ -260,7 +271,7 @@ As an alternative to manual dashboard setup, Runnel provides a root-level `rende
 | **Cold-Start Latency** | Booting Node.js from cold state takes **40 to 60 seconds**. | Displays clear banner: *"Waking up the demo backend — this may take up to a minute on the free hosting tier."* |
 | **Mutation Safety** | Auto-retrying state changes during spin-up could duplicate work. | **Never auto-retries mutations:** Sign-up, execution submission, retry, and cancellation are strictly user-initiated. Read-only stats auto-sync once online. |
 | **Background Processing** | BullMQ workers do not process jobs while the container is spun down. | Queued executions remain safe in Upstash Redis and resume immediately when the service wakes up. |
-| **Daily Command Limits** | Upstash Free allows 10,000 commands / day. | Polling intervals are bounded (12s–30s) to comfortably stay within quota. |
+| **Monthly Command Quota** | Upstash Free provides up to 500,000 commands / month (verify current limits at [upstash.com/pricing/redis](https://upstash.com/pricing/redis)). | Client and internal polling intervals are bounded (12s–30s) to comfortably stay within monthly limits. |
 | **Zero-Cost Safeguards** | Platforms may offer paid upgrades or add-on disks. | Runnel requires **no paid addons**. Do not attach persistent disks or select starter/standard instances. |
 
 ---
@@ -277,11 +288,49 @@ After deployment, test the public deployment with this checklist:
 2. **Open Frontend URL:** Navigate to `https://runnel-frontend-xxxx.onrender.com`.
 3. **Register Demo Account:** Create a new user with username and password.
 4. **Inspect Overview Dashboard:** Verify stat counters load and live gateway status shows *Gateway Online*.
-5. **Submit Test Execution:**
-   - In Settings or via terminal, copy the sample cURL command with your JWT token.
-   - Dispatch an `echo` execution to `https://runnel-backend-xxxx.onrender.com/api/v1/executions`.
-   - Verify the execution appears in the **Execution Inbox** and transitions from `pending` → `running` → `completed`.
-6. **Test Manual Retry:** Trigger a retry on a test execution; verify attempt history increments atomically.
+5. **Submit Test Execution (Truthful Production Workflow):**
+   - In production, synthetic demo handlers (`echo` and `fail`) are strictly blocked (`ENABLE_DEMO_HANDLERS=false`) to prevent arbitrary mock task injection. Runnel's primary production execution type is **`webhook`**, which performs real outbound HTTP delivery with comprehensive SSRF boundary protection, response capture, and attempt tracking.
+   - Dispatch a test `webhook` execution targeting a public echo endpoint (e.g., `https://httpbin.org/post` or a custom [webhook.site](https://webhook.site) target):
+     ```bash
+     curl -X POST https://runnel-backend-xxxx.onrender.com/api/v1/executions \
+       -H "Authorization: Bearer <YOUR_JWT_TOKEN>" \
+       -H "Content-Type: application/json" \
+       -d '{
+         "name": "Sync customer webhook",
+         "type": "webhook",
+         "input": {
+           "url": "https://httpbin.org/post",
+           "method": "POST",
+           "headers": {
+             "Content-Type": "application/json"
+           },
+           "body": {
+             "customerId": "cus_1002",
+             "event": "customer.created"
+           }
+         }
+       }'
+     ```
+   - *Alternative via UI:* In the web application, navigate to **Executions** and click **+ New Execution** (or click **Submit First Execution** on the dashboard). The modal pre-fills the production `webhook` preset with `https://httpbin.org/post`. Click **Submit Execution**.
+   - Verify that the execution appears in the **Execution Inbox**, transitions through `pending` → `running` → `completed`, and updates in real time via Socket.IO.
+   - Click the execution row to open the **Detail Panel**. Inspect the **Attempt History** to verify that HTTP status `200`, execution duration in milliseconds, and the remote response body were captured accurately.
+6. **Verify Upstream Error Diagnostics & Manual Safe Retry:**
+   - To test failure capture and manual recovery without synthetic handlers, submit a `webhook` execution targeting an upstream error endpoint (e.g. `https://httpbin.org/status/502`):
+     ```bash
+     curl -X POST https://runnel-backend-xxxx.onrender.com/api/v1/executions \
+       -H "Authorization: Bearer <YOUR_JWT_TOKEN>" \
+       -H "Content-Type: application/json" \
+       -d '{
+         "name": "Simulate upstream 502 gateway error",
+         "type": "webhook",
+         "input": {
+           "url": "https://httpbin.org/status/502",
+           "method": "POST"
+         }
+       }'
+     ```
+   - Verify that BullMQ records attempt failure, logs structured HTTP error details (`HTTP_502`), and updates execution status to `retrying` or `failed`.
+   - Click **Retry Execution** in the UI to confirm that manual retry succeeds, increments the attempt counter atomically, and obeys the max attempt ceiling.
 7. **Simulate Inactivity / Wake-Up:** Allow the backend to sleep for 16 minutes. Open the frontend and verify the wake-up banner guides the user smoothly through the cold start.
 
 ---

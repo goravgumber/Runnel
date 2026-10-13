@@ -66,8 +66,12 @@ export default function Settings() {
   -H "Content-Type: application/json" \\
   -d '{
     "name": "Sync customer webhook",
-    "type": "echo",
-    "input": {"customerId": "cus_1002"}
+    "type": "webhook",
+    "input": {
+      "url": "https://httpbin.org/post",
+      "method": "POST",
+      "body": {"customerId": "cus_1002", "event": "customer.created"}
+    }
   }'`;
 
   const handleCopyCurl = () => {

@@ -327,7 +327,15 @@ export default function Dashboard() {
                   curl -X POST {apiBaseUrl}/api/v1/executions \<br />
                   &nbsp;&nbsp;-H &quot;Authorization: Bearer &lt;YOUR_API_TOKEN&gt;&quot; \<br />
                   &nbsp;&nbsp;-H &quot;Content-Type: application/json&quot; \<br />
-                  &nbsp;&nbsp;-d &apos;{JSON.stringify({ name: "Daily Invoice Batch", type: "echo", input: { count: 120 } })}&apos;
+                  &nbsp;&nbsp;-d &apos;{JSON.stringify({
+                    name: "Sync customer webhook",
+                    type: "webhook",
+                    input: {
+                      url: "https://httpbin.org/post",
+                      method: "POST",
+                      body: { customerId: "cus_1002", event: "customer.created" }
+                    }
+                  })}&apos;
                 </code>
               </div>
             </div>
