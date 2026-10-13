@@ -209,7 +209,7 @@ class ErrorBoundary extends React.Component {
 export default function App() {
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-canvas text-charcoal transition-colors duration-300 font-sans">
+      <div className="h-full min-h-full bg-canvas text-charcoal transition-colors duration-300 font-sans">
         <AuthProvider>
           <AppContent />
         </AuthProvider>

@@ -1,7 +1,7 @@
 services:
   mongodb:
     image: mongo:6.0
-    container_name: ecosystem_mongodb_dev
+    container_name: runnel_mongodb_dev
     ports:
       - "27017:27017"
     volumes:
@@ -9,36 +9,21 @@ services:
 
   redis:
     image: redis:7.0-alpine
-    container_name: ecosystem_redis_dev
+    container_name: runnel_redis_dev
     ports:
       - "6380:6379"
-
-  ml-service:
-    build:
-      context: ./backend/ml-service
-      dockerfile: Dockerfile
-    container_name: ecosystem_ml_service_dev
-    environment:
-      - PORT=8000
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend/ml-service:/app
-      - /app/.venv
-      - /app/__pycache__
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: ecosystem_backend_dev
+    container_name: runnel_backend_dev
     command: npm run dev
     environment:
       - NODE_ENV=development
       - PORT=5000
-      - MONGO_URI=mongodb://mongodb:27017/ecosystem
+      - MONGO_URI=mongodb://mongodb:27017/runnel
       - REDIS_URL=redis://redis:6379
-      - ML_SERVICE_URL=http://ml-service:8000
       - JWT_SECRET=development_fallback_secret_key_9999
     ports:
       - "5000:5000"
@@ -48,13 +33,12 @@ services:
     depends_on:
       - mongodb
       - redis
-      - ml-service
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: ecosystem_frontend_dev
+    container_name: runnel_frontend_dev
     # Override standard nginx web serving to run development server
     command: npm run dev -- --host
     ports:

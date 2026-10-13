@@ -1,9 +1,9 @@
 const swaggerDocument = {
   openapi: "3.0.1",
   info: {
-    title: "Adaptive Ecosystem Simulator API",
+    title: "Runnel API",
     version: "1.0.0",
-    description: "Production-ready backend API for the Adaptive Ecosystem Simulator.",
+    description: "Open-source recovery inbox for asynchronous background work.",
   },
   servers: [
     {
@@ -23,163 +23,123 @@ const swaggerDocument = {
       AuthRequest: {
         type: "object",
         properties: {
-          username: { type: "string", example: "ecosystem_admin" },
-          password: { type: "string", example: "StrongPassword123" },
+          username: { type: "string", example: "alice_dev" },
+          password: { type: "string", example: "Password123!" },
         },
         required: ["username", "password"],
       },
-      AuthResponse: {
+      ExecutionSubmitRequest: {
         type: "object",
         properties: {
-          token: { type: "string" },
-          user: {
-            type: "object",
-            properties: {
-              id: { type: "string" },
-              username: { type: "string" },
-              isAdmin: { type: "boolean" },
-            },
-          },
+          name: { type: "string", example: "process-order" },
+          type: { type: "string", example: "echo" },
+          payload: { type: "object", example: { orderId: "ord_101" } },
+          idempotencyKey: { type: "string", example: "idem_order_101" },
+          maxAttempts: { type: "integer", example: 3 },
+          timeoutMs: { type: "integer", example: 30000 },
         },
+        required: ["name"],
       },
       ErrorResponse: {
         type: "object",
         properties: {
-          status: { type: "string" },
-          message: { type: "string" },
-          details: { type: "array", items: { type: "object" } },
+          success: { type: "boolean", example: false },
+          error: {
+            type: "object",
+            properties: {
+              code: { type: "string" },
+              message: { type: "string" },
+            },
+          },
         },
       },
     },
   },
   security: [{ BearerAuth: [] }],
   paths: {
-    "/api/auth/signup": {
+    "/api/v1/auth/signup": {
       post: {
         tags: ["Authentication"],
-        summary: "Register a new user",
+        summary: "Register a new developer account",
         requestBody: {
           required: true,
-          content: {
-            "application/json": {
-              schema: { $ref: "#/components/schemas/AuthRequest" },
-            },
-          },
+          content: { "application/json": { schema: { $ref: "#/components/schemas/AuthRequest" } } },
         },
-        responses: {
-          201: { description: "User created successfully" },
-          400: { description: "Validation error", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
-        },
+        responses: { 201: { description: "User registered" } },
       },
     },
-    "/api/auth/login": {
+    "/api/v1/auth/login": {
       post: {
         tags: ["Authentication"],
-        summary: "Authenticate a user and issue a JWT",
+        summary: "Sign in and acquire access tokens",
         requestBody: {
           required: true,
-          content: {
-            "application/json": {
-              schema: { $ref: "#/components/schemas/AuthRequest" },
-            },
-          },
+          content: { "application/json": { schema: { $ref: "#/components/schemas/AuthRequest" } } },
         },
-        responses: {
-          200: { description: "Authentication success", content: { "application/json": { schema: { $ref: "#/components/schemas/AuthResponse" } } } },
-          401: { description: "Invalid credentials" },
-        },
+        responses: { 200: { description: "Authenticated successfully" } },
       },
     },
-    "/api/auth/validate": {
+    "/api/v1/executions": {
       get: {
-        tags: ["Authentication"],
-        security: [{ BearerAuth: [] }],
-        summary: "Validate the current JWT",
-        responses: {
-          200: { description: "Token valid" },
-          401: { description: "Invalid or expired token" },
-        },
-      },
-    },
-    "/api/auth/me": {
-      get: {
-        tags: ["Authentication"],
-        security: [{ BearerAuth: [] }],
-        summary: "Get the authenticated user's profile",
-        responses: {
-          200: { description: "User profile returned" },
-          401: { description: "Not authenticated" },
-        },
-      },
-    },
-    "/api/simulation": {
-      get: {
-        tags: ["Simulation"],
-        security: [{ BearerAuth: [] }],
-        summary: "Fetch authenticated user's simulation history",
+        tags: ["Executions"],
+        summary: "List executions with filtering and pagination",
         parameters: [
-          { name: "limit", in: "query", schema: { type: "integer" }, required: false },
+          { name: "status", in: "query", schema: { type: "string" } },
+          { name: "search", in: "query", schema: { type: "string" } },
+          { name: "page", in: "query", schema: { type: "integer" } },
+          { name: "limit", in: "query", schema: { type: "integer" } },
         ],
-        responses: {
-          200: { description: "Simulation history returned" },
-        },
+        responses: { 200: { description: "List of executions" } },
       },
       post: {
-        tags: ["Simulation"],
-        security: [{ BearerAuth: [] }],
-        summary: "Record a simulation step",
+        tags: ["Executions"],
+        summary: "Submit a new background execution",
         requestBody: {
           required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  step: { type: "integer" },
-                  plants: { type: "integer" },
-                  herbivores: { type: "integer" },
-                  carnivores: { type: "integer" },
-                },
-                required: ["step", "plants", "herbivores", "carnivores"],
-              },
-            },
-          },
+          content: { "application/json": { schema: { $ref: "#/components/schemas/ExecutionSubmitRequest" } } },
         },
         responses: {
-          201: { description: "Simulation step saved" },
-        },
-      },
-      delete: {
-        tags: ["Simulation"],
-        security: [{ BearerAuth: [] }],
-        summary: "Clear authenticated user's simulation history",
-        description: "Deletes all saved simulation records for the current user.",
-        responses: {
-          200: { description: "Simulation history cleared" },
+          200: { description: "Idempotent response" },
+          202: { description: "Execution queued" },
         },
       },
     },
-    "/api/reports/summary": {
+    "/api/v1/executions/stats": {
       get: {
-        tags: ["Reports"],
-        security: [{ BearerAuth: [] }],
-        summary: "Return a report summary for the current user",
-        parameters: [
-          { name: "limit", in: "query", schema: { type: "integer" }, required: false },
-        ],
-        responses: {
-          200: { description: "Report summary returned" },
-        },
+        tags: ["Executions"],
+        summary: "Retrieve execution overview telemetry and counts",
+        responses: { 200: { description: "Execution counts by status" } },
+      },
+    },
+    "/api/v1/executions/{id}": {
+      get: {
+        tags: ["Executions"],
+        summary: "Inspect an execution by ID",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { 200: { description: "Execution details" } },
+      },
+    },
+    "/api/v1/executions/{id}/retry": {
+      post: {
+        tags: ["Executions"],
+        summary: "Retry a failed or cancelled execution within limits",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { 202: { description: "Execution re-enqueued" } },
+      },
+    },
+    "/api/v1/executions/{id}/cancel": {
+      post: {
+        tags: ["Executions"],
+        summary: "Cancel an eligible pending or running execution",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: { 200: { description: "Execution cancelled" } },
       },
     },
     "/health": {
       get: {
         tags: ["Health"],
-        summary: "Return health metrics for the backend and ML service",
-        responses: {
-          200: { description: "Healthy" },
-          503: { description: "Unhealthy" },
-        },
+        summary: "Service health and readiness check",
+        responses: { 200: { description: "Healthy" }, 503: { description: "Degraded" } },
       },
     },
   },

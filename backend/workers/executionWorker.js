@@ -207,13 +207,15 @@ const processExecutionJob = async (job, io) => {
   }
 };
 
+let activeWorker = null;
+
 const startExecutionWorker = (io) => {
   if (!redisClient) {
     logger.warn("Redis unavailable; execution worker will not start.");
     return null;
   }
 
-  const worker = new Worker(
+  activeWorker = new Worker(
     "runnel-executions",
     async (job) => processExecutionJob(job, io),
     {
@@ -222,16 +224,26 @@ const startExecutionWorker = (io) => {
     }
   );
 
-  worker.on("completed", (job) =>
+  activeWorker.on("completed", (job) =>
     logger.info(`[ExecWorker] Job ${job.id} completed`)
   );
-  worker.on("failed", (job, err) =>
+  activeWorker.on("failed", (job, err) =>
     logger.error(`[ExecWorker] Job ${job?.id} failed after all attempts: ${err.message}`)
   );
 
   logger.info("Execution worker started (queue: runnel-executions, concurrency: 4)");
-  return worker;
+  return activeWorker;
 };
 
-module.exports = { startExecutionWorker, processExecutionJob, HANDLER_REGISTRY, resolveHandler };
+const stopExecutionWorker = async () => {
+  if (activeWorker) {
+    try {
+      await activeWorker.close();
+      logger.info("Execution worker closed gracefully");
+    } catch (_) {}
+    activeWorker = null;
+  }
+};
+
+module.exports = { startExecutionWorker, stopExecutionWorker, processExecutionJob, HANDLER_REGISTRY, resolveHandler };
 

@@ -1,27 +1,10 @@
 const mongoose = require("mongoose");
 const config = require("../config/env");
 const redisClient = require("../config/redis");
-const { getSystemMetrics } = require("./monitoringController");
+const { getSystemMetrics } = require("../utils/systemMetrics");
+const { getRunnelQueue } = require("../queues");
 const { sendSuccess, sendError } = require("../utils/responseFormatter");
 const errorCodes = require("../utils/errorCodes");
-
-const checkService = async (url, timeoutMs = 5000) => {
-  const start = Date.now();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, { method: "GET", signal: controller.signal });
-    const latency = Date.now() - start;
-    if (!response.ok) {
-      return { healthy: false, latency_ms: latency, message: `Returned ${response.status}` };
-    }
-    return { healthy: true, latency_ms: latency };
-  } catch (error) {
-    return { healthy: false, latency_ms: Date.now() - start, message: error.message };
-  } finally {
-    clearTimeout(timeout);
-  }
-};
 
 const healthCheck = async (req, res, next) => {
   try {
@@ -53,13 +36,21 @@ const healthCheck = async (req, res, next) => {
       }
     }
 
-    const mlService = await checkService(`${config.ML_SERVICE_URL}/health`);
-    const simService = await checkService(
-      `${process.env.SIMULATION_SERVICE_URL || "http://localhost:3001"}/health`
-    );
+    // Check Runnel BullMQ Queue
+    let queueStatus = "inactive";
+    let queueCounts = null;
+    const runnelQueue = getRunnelQueue();
+    if (runnelQueue) {
+      try {
+        queueCounts = await runnelQueue.getJobCounts("waiting", "active", "completed", "failed", "delayed");
+        queueStatus = "operational";
+      } catch (_) {
+        queueStatus = "degraded";
+      }
+    }
 
     const metrics = await getSystemMetrics();
-    const allHealthy = mongodbStatus === "connected" && redisStatus === "connected" && mlService.healthy;
+    const allHealthy = mongodbStatus === "connected" && (redisStatus === "connected" || config.NODE_ENV !== "production");
     const overallStatus = allHealthy ? "pass" : "fail";
 
     const payload = {
@@ -69,8 +60,7 @@ const healthCheck = async (req, res, next) => {
       services: {
         mongodb: { status: mongodbStatus, latency_ms: mongodbLatency },
         redis: { status: redisStatus, latency_ms: redisLatency },
-        ml_service: mlService,
-        simulation_service: simService,
+        queue: { name: "runnel-executions", status: queueStatus, counts: queueCounts },
       },
       checks: {
         websocket: { enabled: !!req.app.get("io") },

@@ -65,9 +65,9 @@ export default function Layout() {
   const recoveryAlertCount = (stats.failed || 0) + (stats.retrying || 0);
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-canvas font-sans text-charcoal">
+    <div className="flex flex-col md:flex-row h-screen max-h-screen overflow-hidden bg-canvas font-sans text-charcoal">
       {/* Mobile Top Header (< md) */}
-      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-surface border-b border-stone-border sticky top-0 z-30">
+      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-surface border-b border-stone-border shrink-0 z-30">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-forest flex items-center justify-center text-white font-bold font-mono text-xs shadow-sm">
             R
@@ -108,15 +108,15 @@ export default function Layout() {
         />
       )}
 
-      {/* Sidebar (Desktop & Mobile Slide-over) */}
+      {/* Sidebar (Desktop anchored & Mobile Slide-over) */}
       <aside
         className={`
           ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
-          fixed md:static inset-y-0 left-0 w-[230px] shrink-0 bg-surface border-r border-stone-border flex flex-col z-40 shadow-sm select-none transition-transform duration-200 ease-in-out
+          fixed md:static inset-y-0 left-0 w-[230px] shrink-0 h-full max-h-screen bg-surface border-r border-stone-border flex flex-col z-40 shadow-sm md:shadow-none select-none transition-transform duration-200 ease-in-out
         `}
       >
         {/* Brand Header */}
-        <div className="px-5 pt-6 pb-4 border-b border-stone-border/60">
+        <div className="px-5 pt-6 pb-4 border-b border-stone-border/60 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-forest flex items-center justify-center text-white font-bold font-mono text-sm shadow-sm">
               R
@@ -133,7 +133,7 @@ export default function Layout() {
         </div>
 
         {/* Quick Submit Action Button */}
-        <div className="px-4 py-3">
+        <div className="px-4 py-3 shrink-0">
           <Button
             variant="primary"
             size="sm"
@@ -146,7 +146,7 @@ export default function Layout() {
         </div>
 
         {/* Primary Navigation */}
-        <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
+        <nav className="flex-1 min-h-0 px-3 py-2 space-y-1 overflow-y-auto">
           <div className="text-[10px] font-mono font-semibold uppercase tracking-wider text-charcoal-muted px-2 py-1">
             Navigation
           </div>
@@ -180,7 +180,7 @@ export default function Layout() {
         </nav>
 
         {/* Footer: User profile, connectivity & logout */}
-        <div className="p-4 border-t border-stone-border space-y-3 bg-surface">
+        <div className="p-4 border-t border-stone-border space-y-3 bg-surface shrink-0">
           <div className="flex items-center gap-2">
             <span className={`relative flex h-2 w-2 ${connected ? "" : "opacity-50"}`}>
               <span
@@ -230,7 +230,7 @@ export default function Layout() {
       </aside>
 
       {/* Main View Area */}
-      <main className="flex-1 min-w-0 overflow-y-auto">
+      <main className="flex-1 min-w-0 min-h-0 h-full overflow-y-auto">
         <Outlet />
       </main>
     </div>

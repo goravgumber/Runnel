@@ -7,13 +7,11 @@ const AppError = require("../middleware/AppError");
 
 const router = express.Router();
 
-const KNOWN_QUEUES = ["background-tasks"];
+const KNOWN_QUEUES = ["runnel-executions"];
 const ALLOWED_JOBS = new Set([
-  "ml-training",
-  "prediction-generation",
-  "alert-processing",
-  "report-generation",
-  "event-cleanup",
+  "echo",
+  "fail",
+  "task",
 ]);
 
 router.use(authMiddleware);

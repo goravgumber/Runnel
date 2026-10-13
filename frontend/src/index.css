@@ -8,15 +8,23 @@
 
 html { 
   font-size: 14px; 
+  height: 100%;
 }
 
 body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
   background-color: #FBF9F3;
   color: #171717;
   font-family: Inter, -apple-system, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
+}
+
+#root {
+  height: 100%;
 }
 
 /* Ensure clean inputs across all browsers */

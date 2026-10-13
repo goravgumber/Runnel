@@ -136,7 +136,7 @@ export default function Settings() {
   const labelCls = "block text-xs font-mono uppercase tracking-wider text-charcoal-secondary mb-1.5";
 
   return (
-    <div className="min-h-screen bg-canvas p-6 md:p-8 max-w-4xl mx-auto space-y-6">
+    <div className="min-h-full bg-canvas p-6 md:p-8 max-w-4xl mx-auto space-y-6">
       {/* Page Header */}
       <div>
         <h1 className="text-xl font-bold text-charcoal font-sans">Settings &amp; Developer Preferences</h1>

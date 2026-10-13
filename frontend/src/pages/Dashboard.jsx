@@ -154,7 +154,7 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="min-h-screen bg-canvas p-6 lg:p-8 space-y-6">
+    <div className="min-h-full bg-canvas p-6 lg:p-8 space-y-6">
       {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-border">
         <div>

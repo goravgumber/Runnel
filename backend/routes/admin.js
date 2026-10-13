@@ -3,8 +3,8 @@ const mongoose = require("mongoose");
 const authMiddleware = require("../middleware/auth");
 const requireRole = require("../middleware/requireRole");
 const userRepository = require("../repositories/userRepository");
-const Event = require("../models/Event");
-const Simulation = require("../models/Simulation");
+const Execution = require("../models/Execution");
+const ExecutionAttempt = require("../models/ExecutionAttempt");
 const { sendSuccess } = require("../utils/responseFormatter");
 const AppError = require("../middleware/AppError");
 
@@ -13,11 +13,11 @@ const router = express.Router();
 router.use(authMiddleware, requireRole("admin"));
 
 router.get("/overview", async (_req, res) => {
-  const [userCount, simulationCount, unresolvedEvents, recentEvents] = await Promise.all([
+  const [userCount, executionCount, failedExecutions, recentExecutions] = await Promise.all([
     userRepository.count(),
-    Simulation.countDocuments(),
-    Event.countDocuments({ resolved: false, severity: { $in: ["warning", "critical"] } }),
-    Event.find().sort({ timestamp: -1 }).limit(10).lean(),
+    Execution.countDocuments(),
+    Execution.countDocuments({ status: { $in: ["failed", "retrying"] } }),
+    Execution.find().sort({ createdAt: -1 }).limit(10).lean(),
   ]);
 
   return sendSuccess(
@@ -25,12 +25,12 @@ router.get("/overview", async (_req, res) => {
     {
       overview: {
         users: userCount,
-        simulations: simulationCount,
-        unresolvedEvents,
+        executions: executionCount,
+        failedExecutions,
         databaseState: mongoose.connection.readyState,
         uptime: process.uptime(),
       },
-      recentEvents,
+      recentExecutions,
     },
     200,
     "Admin overview fetched successfully"

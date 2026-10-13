@@ -17,7 +17,8 @@ In modern distributed systems, background tasks and asynchronous operations fail
 - **Real-Time WebSocket Streaming:** Live status updates, attempt counts, and queue activity streamed instantly over authenticated Socket.IO rooms.
 - **Developer-First API & Presets:** Dispatch executions directly from your CLI, CI/CD pipeline, or scripts with standardized bearer tokens and cURL examples.
 - **Stitch Design Identity:** Warm ivory canvas (`#FBF9F3`), structural white surfaces (`#FFFFFF`), forest green primary accents (`#1B4332`), and restrained terracotta alerts (`#B63B32`).
-- **Non-Destructive Coexistence:** Preserves legacy ecosystem simulation tools behind an isolated accordion drawer while prioritizing the Runnel recovery workflows.
+- **Independent Viewport Scrolling:** Fixed desktop sidebar navigation with independently scrollable main execution log and responsive mobile navigation drawer.
+- **Zero-Cruft Architecture:** Pure Runnel recovery inbox with all obsolete ecosystem simulation and ML services safely excised.
 
 ---
 
@@ -48,6 +49,10 @@ Express API Gateway (Node.js, Port 5000)
                 error stack capture, and Socket.IO emission
 ```
 
+### Layout Architecture
+- **Desktop (>= 1024px):** Fixed-height viewport (`h-screen overflow-hidden`). The sidebar navigation remains anchored to the viewport at all times, with internal scrolling for overflow. The main content region (`<main className="flex-1 min-w-0 min-h-0 h-full overflow-y-auto">`) scrolls independently without page-level jitter.
+- **Mobile (< 768px):** Sticky top bar with quick submission trigger and navigation drawer toggle. Fluid off-canvas slide-over drawer with backdrop overlay.
+
 ---
 
 ## 3. Technology Stack
@@ -62,7 +67,23 @@ Express API Gateway (Node.js, Port 5000)
 
 ---
 
-## 4. Getting Started
+## 4. Screenshots
+
+| Overview Dashboard | Execution Inbox |
+|---|---|
+| ![Overview Dashboard](docs/screenshots/03_overview_dashboard.png) | ![Execution Inbox](docs/screenshots/04_execution_inbox.png) |
+
+| Execution Detail & Attempts | Submit Task Modal |
+|---|---|
+| ![Execution Detail](docs/screenshots/05_execution_detail_drawer.png) | ![Submit Modal](docs/screenshots/06_submit_execution_modal.png) |
+
+| Developer Settings & Policies | Mobile Responsive Drawer (390px) |
+|---|---|
+| ![Settings](docs/screenshots/07_settings_page.png) | ![Mobile Drawer](docs/screenshots/10_mobile_drawer_open_390x844.png) |
+
+---
+
+## 5. Getting Started
 
 ### Prerequisites
 - **Node.js** >= 18.0.0
@@ -120,7 +141,24 @@ Visit **`http://localhost:5173`** in your browser.
 
 ---
 
-## 5. API Reference
+## 6. Docker Deployment
+
+Deploy the entire production stack using Docker Compose:
+
+```bash
+docker compose up -d
+```
+
+Services started:
+- `runnel_mongodb` (Port 27017)
+- `runnel_redis` (Port 6380:6379)
+- `runnel_backend` (Port 5000)
+- `runnel_frontend` (Port 8080)
+- `runnel_nginx` (Port 80)
+
+---
+
+## 7. API Reference
 
 All protected endpoints require an `Authorization: Bearer <JWT_ACCESS_TOKEN>` header.
 
@@ -139,7 +177,7 @@ All protected endpoints require an `Authorization: Bearer <JWT_ACCESS_TOKEN>` he
   {
     "name": "Sync Stripe Webhook",
     "type": "echo",
-    "input": { "eventId": "evt_1002" },
+    "payload": { "eventId": "evt_1002" },
     "maxAttempts": 3,
     "idempotencyKey": "webhook_evt_1002",
     "tags": ["billing", "stripe"]
@@ -149,7 +187,7 @@ All protected endpoints require an `Authorization: Bearer <JWT_ACCESS_TOKEN>` he
 - `GET /api/v1/executions/:id` — Full execution details, input/output, and attempt history.
 - `POST /api/v1/executions/:id/retry` — Manually retry a failed or cancelled execution.
 - `POST /api/v1/executions/:id/cancel` — Cancel a pending or running execution.
-- `GET /api/v1/executions/stats/overview` — Aggregated counts by status (`total`, `pending`, `running`, `completed`, `failed`, `retrying`, `cancelled`).
+- `GET /api/v1/executions/stats` — Aggregated counts by status (`total`, `pending`, `running`, `completed`, `failed`, `retrying`, `cancelled`).
 
 ### User & Policy Settings
 - `GET /api/v1/users/settings` — Get current user execution queue policies.
@@ -157,12 +195,12 @@ All protected endpoints require an `Authorization: Bearer <JWT_ACCESS_TOKEN>` he
 
 ---
 
-## 6. Testing & Quality Gates
+## 8. Testing & Quality Gates
 
 Runnel includes a 100% hermetic automated test suite requiring no manual database setup:
 
 ```bash
-# Run all backend unit, integration, and lifecycle tests (51 tests)
+# Run all backend unit, integration, and lifecycle tests (48 tests)
 cd backend
 NODE_ENV=test npm test
 
@@ -175,18 +213,18 @@ npm run build
 - **Auth Suite (12 tests):** Validation, password hashing, JWT rotation, session restore, duplicate username protection, protected route enforcement.
 - **Execution Lifecycle Suite (28 tests):** Submission validation, bounded retries, idempotency and payload conflict checks, concurrency safety, cancellation rules, enqueue failure handling.
 - **Worker Suite (8 tests):** Handler registry, execution job lifecycles, error recording, attempt logging.
-- **Simulation Suite (3 tests):** Legacy backward compatibility verification.
 
 ---
 
-## 7. Architecture Decision Records (ADRs)
+## 9. Architecture Decision Records (ADRs)
 
-1. **ADR-001: Warm Ivory & Stitch Atelier OS Identity:** Replaced the legacy dark cyan simulator interface with Stitch design tokens (`#FBF9F3` canvas, `#FFFFFF` surfaces, `#1B4332` forest green, `#B63B32` terracotta).
+1. **ADR-001: Warm Ivory & Stitch Atelier OS Identity:** Adopted Stitch design tokens (`#FBF9F3` canvas, `#FFFFFF` surfaces, `#1B4332` forest green, `#B63B32` terracotta).
 2. **ADR-002: Hermetic Test Setup:** Wrapped the backend test runner in `mongodb-memory-server` and test-mode rate-limit bypasses to eliminate flaky timer leaks and avoid external database dependencies.
-3. **ADR-003: Non-Destructive Simulator Isolation:** Maintained existing simulation endpoints and legacy views behind a collapsible drawer rather than deleting working code destructively.
+3. **ADR-003: Safe Legacy Decommissioning & Zero-Cruft Consolidation:** Completely audited and removed obsolete ecosystem simulation models, ML services, and unreferenced routes, resulting in a singular, pristine Runnel codebase.
+4. **ADR-004: Viewport Flex Shell with Independent Main Scrolling:** Established `h-screen overflow-hidden` flex shell with fixed anchored sidebar and independent `overflow-y-auto min-h-0` on `<main>`, eliminating full-page scrolling defects across desktop and mobile.
 
 ---
 
-## 8. License
+## 10. License
 
 Distributed under the MIT License. See `LICENSE` for more information.

@@ -19,29 +19,16 @@ const logger = require("./config/logger");
 const requestLogger = require("./middleware/requestLogger");
 const socketAuth = require("./sockets/socketAuth");
 const { notFoundHandler, errorHandler } = require("./middleware/errorHandler");
-const { startWorkers, stopWorkers } = require("./workers");
-const { addJob } = require("./queues");
-const { tickQueue, createTickWorker, getQueueStats } = require("./queues/simulationQueue");
-const { startExecutionWorker } = require("./workers/executionWorker");
+const { startExecutionWorker, stopExecutionWorker } = require("./workers/executionWorker");
 const { getRunnelQueue } = require("./queues");
 const requireRole = require("./middleware/requireRole");
 
 const authRoutes = require("./routes/auth");
-const simulationRoutesFactory = require("./routes/simulation");
-const dashboardRoutes = require("./routes/dashboard");
-const logRoutes = require("./routes/logs");
-const reportsRoutes = require("./routes/reports");
-const monitorRoutes = require("./routes/monitor");
-const alertsRoutesFactory = require("./routes/alerts");
-const metricsRoutes = require("./routes/metrics");
-const eventsRoutes = require("./routes/events");
-const historyRoutes = require("./routes/history");
-const predictionsRoutes = require("./routes/Predictions");
+const executionsRoutes = require("./routes/executions");
+const usersRoutes = require("./routes/users");
 const queuesRoutes = require("./routes/queues");
 const adminRoutes = require("./routes/admin");
-const usersRoutes = require("./routes/users");
 const healthRoutes = require("./routes/health");
-const executionsRoutes = require("./routes/executions");
 const swaggerSpec = require("./docs/swaggerSpec");
 
 const app = express();
@@ -90,80 +77,25 @@ app.use(compression());
 app.set("io", io);
 io.use(socketAuth);
 
-const initializeAIService = async () => {
-  try {
-    const aiService = require("./services/aiService");
-    const initialized = await aiService.initialize();
-    if (initialized) {
-      logger.info("AI Service initialized successfully");
-    } else {
-      logger.warn("AI Service initialization failed; fallback predictions will be used");
-    }
-  } catch (error) {
-    logger.error("AI Service initialization error", error);
-  }
-};
-
-const startBackgroundMonitoring = () => {
-  // Queue alert-processing immediately on startup, then every 60s
-  addJob("background-tasks", "alert-processing", {}).catch((err) => {
-    logger.error("Failed to queue initial alert processing: %s", err.message);
-  });
-
-  setInterval(() => {
-    addJob("background-tasks", "alert-processing", {}).catch((err) => {
-      logger.error("Failed to queue alert processing: %s", err.message);
-    });
-  }, 60 * 1000);
-
-  setInterval(() => {
-    addJob("background-tasks", "event-cleanup", {}).catch((err) => {
-      logger.error("Failed to queue data cleanup: %s", err.message);
-    });
-  }, 6 * 60 * 60 * 1000);
-};
-
 const configureRoutes = () => {
   const apiRouter = express.Router();
 
   apiRouter.use("/auth", authRoutes);
-  apiRouter.use("/simulation", simulationRoutesFactory(io));
-  apiRouter.use("/dashboard", dashboardRoutes);
-  apiRouter.use("/logs", logRoutes);
-  apiRouter.use("/reports", reportsRoutes);
-  apiRouter.use("/monitor", monitorRoutes);
-  apiRouter.use("/alerts", alertsRoutesFactory(io));
-  apiRouter.use("/metrics", metricsRoutes);
-  apiRouter.use("/events", eventsRoutes);
-  apiRouter.use("/predictions", predictionsRoutes);
-  apiRouter.use("/queues", queuesRoutes);
-  apiRouter.use("/admin", adminRoutes);
-  apiRouter.use("/simulation-history", historyRoutes);
   apiRouter.use("/users", usersRoutes);
   apiRouter.use("/executions", executionsRoutes);
-
-  // Queue stats endpoint
-  apiRouter.get("/queue/stats", async (req, res) => {
-    try {
-      const stats = await getQueueStats();
-      res.json(stats);
-    } catch (error) {
-      logger.error("Queue stats error: %s", error.message);
-      res.status(500).json({ error: "Failed to get queue stats" });
-    }
-  });
+  apiRouter.use("/queues", queuesRoutes);
+  apiRouter.use("/admin", adminRoutes);
 
   app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
   app.use("/api/v1", apiRouter);
   app.use("/api", apiRouter);
   app.use("/health", healthRoutes);
 
-  // Bull Board
+  // Bull Board for Runnel Executions
   const serverAdapter = new ExpressAdapter();
   serverAdapter.setBasePath("/admin/queues");
   createBullBoard({
     queues: [
-      new BullMQAdapter(tickQueue),
       new BullMQAdapter(getRunnelQueue()),
     ],
     serverAdapter,
@@ -173,8 +105,8 @@ const configureRoutes = () => {
   app.get("/", (req, res) => {
     res.json({
       status: "OK",
-      service: "Adaptive Ecosystem Simulator Backend",
-      version: "3.0.0",
+      service: "Runnel Execution Recovery Backend",
+      version: "1.0.0",
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
     });
@@ -225,14 +157,10 @@ const startServer = async () => {
       }
     }
     await ensureUserIndexes();
-    await initializeAIService();
 
-    // Start BullMQ workers
-    startWorkers(io);
-    createTickWorker(io);
+    // Start BullMQ execution worker
     startExecutionWorker(io);
 
-    startBackgroundMonitoring();
     configureRoutes();
 
     io.on("connection", (socket) => {
@@ -245,7 +173,7 @@ const startServer = async () => {
 
       socket.on("request-metrics", async () => {
         try {
-          const { getSystemMetrics } = require("./controllers/monitoringController");
+          const { getSystemMetrics } = require("./utils/systemMetrics");
           const metrics = await getSystemMetrics();
           socket.emit("metrics-update", metrics);
         } catch (error) {
@@ -260,7 +188,7 @@ const startServer = async () => {
 
     const port = config.PORT;
     server.listen(port, () => {
-      logger.info("Server started", { port, nodeEnv: config.NODE_ENV });
+      logger.info("Runnel Backend Server started", { port, nodeEnv: config.NODE_ENV });
     });
   } catch (error) {
     logger.error("Server startup failed", error);
@@ -274,7 +202,7 @@ const shutdown = async (signal) => {
 
   try {
     logger.info("Shutdown initiated", { signal });
-    await stopWorkers();
+    await stopExecutionWorker();
     if (redisClient && redisClient.status !== "end") {
       await redisClient.quit();
       logger.info("Redis client closed");

@@ -651,7 +651,7 @@ export default function ExecutionInbox() {
 
   // ── Render ─────────────────────────────────────────────────────────
   return (
-    <div className="flex h-full flex-col bg-canvas min-h-screen">
+    <div className="flex min-h-full flex-col bg-canvas">
       {/* ── Top Bar ─────────────────────────────────────────── */}
       <div className="border-b border-stone-border bg-surface px-6 py-4">
         <div className="flex items-center justify-between mb-4">

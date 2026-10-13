@@ -65,9 +65,6 @@ function createTestApp() {
   app.use(express.json());
   app.use("/api/v1/executions", executionsRoutes);
   app.use("/api/v1/auth", authRoutes);
-  const simulationRoutesFactory = require("../../routes/simulation");
-  const mockIo = { emit: () => {}, to: () => ({ emit: () => {} }) };
-  app.use("/api/v1/simulation", simulationRoutesFactory(mockIo));
   app.use(errorHandler);
   return app;
 }
