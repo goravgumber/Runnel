@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { userAPI, authAPI } from "../services/api";
+import { getApiBaseUrl } from "../utils/url";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -58,15 +59,19 @@ export default function Settings() {
     fetchSettings();
   }, []);
 
-  const apiBaseUrl = typeof window !== "undefined" ? window.location.origin : "http://localhost:5000";
+  const apiBaseUrl = getApiBaseUrl();
 
   const curlCommand = `curl -X POST ${apiBaseUrl}/api/v1/executions \\
   -H "Authorization: Bearer <YOUR_API_TOKEN>" \\
   -H "Content-Type: application/json" \\
   -d '{
     "name": "Sync customer webhook",
-    "type": "echo",
-    "input": {"customerId": "cus_1002"}
+    "type": "webhook",
+    "input": {
+      "url": "https://httpbin.org/post",
+      "method": "POST",
+      "body": {"customerId": "cus_1002", "event": "customer.created"}
+    }
   }'`;
 
   const handleCopyCurl = () => {

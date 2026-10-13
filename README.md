@@ -267,7 +267,7 @@ For complete details on test coverage and security boundary tests, see [docs/tes
 - **[System Architecture](docs/architecture.md)** — Architectural design, execution state machine, and SSRF boundary.
 - **[API Reference](docs/api.md)** — Complete endpoint definitions, request/response formats, and status codes.
 - **[Local Development Guide](docs/development.md)** — Step-by-step setup, configuration reference, and development workflows.
-- **[Production Deployment Guide](docs/deployment.md)** — VPS setup, Docker Compose production, TLS termination, and backup runbooks.
+- **[Production & Portfolio Deployment Guide](docs/deployment.md)** — Zero-cost Render + Atlas + Upstash setup, VPS Docker Compose production, TLS termination, and backup runbooks.
 - **[Testing & Quality Assurance Guide](docs/testing.md)** — Hermetic test details, webhook SSRF test matrix, and recovery verification.
 - **[Contributing & Branching Strategy](docs/contributing.md)** — Git branching model (`main`, `develop`, `feature/*`), PR workflow, release cycles, and code of conduct.
 - **[Security Policy](SECURITY.md)** — Vulnerability reporting guidelines and architectural defenses.
