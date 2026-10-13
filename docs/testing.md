@@ -9,7 +9,7 @@ Runnel is engineered for mission-critical reliability. Our test strategy emphasi
 Runnel's automated test suite is built natively on Node.js (`node --test` and `node:assert/strict`) without relying on heavy external test frameworks.
 
 - **Zero-Dependency Hermetic Execution**: Unit and integration tests automatically spin up an isolated in-memory MongoDB server via `mongodb-memory-server`. No local or external database installation is required to run the full test suite.
-- **Continuous Integration**: The consolidated GitHub Actions workflow ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) executes these tests on every pull request and push to `main` against containerized MongoDB 6.0 and Redis 7.0 services.
+- **Continuous Integration**: The consolidated GitHub Actions workflow ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) executes these tests on every pull request and push to `main` and `develop` against containerized MongoDB 8.0 and Redis 7.4 services, and validates production Docker Compose configs and image builds.
 
 ---
 

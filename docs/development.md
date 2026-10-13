@@ -8,8 +8,8 @@ This guide details the local setup, development workflows, configuration contrac
 
 - **Node.js**: `>= 18.0.0` (v22 recommended)
 - **npm**: `>= 9.0.0`
-- **Redis**: `>= 7.0` (running locally on `127.0.0.1:6379` or via Docker)
-- **MongoDB**: `>= 6.0` (optional: Runnel automatically initializes an embedded `MongoMemoryServer` if no external MongoDB instance is running during local development)
+- **Redis**: `>= 7.0` (v7.4 recommended, running locally on `127.0.0.1:6379` or via Docker)
+- **MongoDB**: `>= 7.0` (v8.0 recommended; optional: Runnel automatically initializes an embedded `MongoMemoryServer` if no external MongoDB instance is running during local development)
 - **Docker & Docker Compose** (optional: for containerized development)
 
 ---

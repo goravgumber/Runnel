@@ -1,6 +1,6 @@
 services:
   mongodb:
-    image: mongo:6.0
+    image: mongo:8.0
     container_name: runnel_mongodb_prod
     restart: unless-stopped
     # Database port remains strictly internal to the container network in production.
@@ -18,7 +18,7 @@ services:
       - runnel_prod_net
 
   redis:
-    image: redis:7.0-alpine
+    image: redis:7.4-alpine
     container_name: runnel_redis_prod
     restart: unless-stopped
     # Redis port remains strictly internal to the container network in production.
@@ -95,7 +95,7 @@ services:
       - runnel_prod_net
 
   nginx:
-    image: nginx:1.25-alpine
+    image: nginx:1.27-alpine
     container_name: runnel_nginx_prod
     restart: unless-stopped
     ports:
@@ -103,8 +103,8 @@ services:
       - "443:443"
     volumes:
       - ./infra/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
-      - certbot_certs:/etc/letsencrypt:ro
-      - certbot_challenge:/var/www/certbot:ro
+      - ${LETSENCRYPT_DIR:-/etc/letsencrypt}:/etc/letsencrypt:ro
+      - ${CERTBOT_CHALLENGE_DIR:-/var/www/certbot}:/var/www/certbot:ro
     depends_on:
       - frontend
       - backend
@@ -118,5 +118,3 @@ networks:
 volumes:
   mongodb_prod_data:
   redis_prod_data:
-  certbot_certs:
-  certbot_challenge:

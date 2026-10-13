@@ -32,10 +32,10 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mongodb:
-        image: mongo:6.0
+        image: mongo:8.0
         ports: ["27017:27017"]
       redis:
-        image: redis:7-alpine
+        image: redis:7.4-alpine
         ports: ["6379:6379"]
     defaults:
       run:
@@ -89,7 +89,7 @@ jobs:
       - run: npm run build
 
   docker-validate:
-    name: Docker Compose Validation
+    name: Docker Validation & Image Builds
     runs-on: ubuntu-latest
     env:
       JWT_SECRET: "ci_sample_production_jwt_secret_32_chars_min"
@@ -102,3 +102,7 @@ jobs:
         run: docker compose -f docker-compose.dev.yml config --quiet
       - name: Validate Production Compose
         run: docker compose -f docker-compose.prod.yml config --quiet
+      - name: Build Backend Docker Image
+        run: docker build -t runnel-backend:ci ./backend
+      - name: Build Frontend Docker Image
+        run: docker build -t runnel-frontend:ci ./frontend

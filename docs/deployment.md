@@ -27,7 +27,7 @@ External Internet Traffic (Clients, Webhooks, Browsers)
          ┌──────────────────────┐    ┌──────────────────────────────────┐
          │ Frontend (React SPA) │    │ Backend API & Worker Engine      │
          │  • Port 80 internal  │    │  • Port 5000 internal            │
-         │  • Nginx static host │    │  • Node.js 18 / Express 4        │
+         │  • Nginx 1.27 Alpine │    │  • Node.js 22 LTS / Express 4    │
          │  • Client-side SPA   │    │  • BullMQ Queue Worker           │
          │    routing           │    │  • Stuck-Execution Recovery      │
          └──────────────────────┘    │  • Outbound Webhook Dispatcher   │
@@ -36,7 +36,7 @@ External Internet Traffic (Clients, Webhooks, Browsers)
                            Private Docker Bridge │              │ Private Docker Bridge
                                                  ▼              ▼
                                ┌──────────────────────┐   ┌──────────────────────┐
-                               │ MongoDB 6.0          │   │ Redis 7.0 Alpine     │
+                               │ MongoDB 8.0          │   │ Redis 7.4 Alpine     │
                                │  • Port 27017 private│   │  • Port 6379 private │
                                │  • mongodb_prod_data │   │  • redis_prod_data   │
                                │    volume            │   │    volume            │
@@ -144,9 +144,12 @@ newgrp docker
 ```
 
 ### Step 3: Issue Initial TLS Certificate
-To ensure Nginx starts successfully on first boot, obtain the certificate using Certbot standalone with `--cert-name runnel`:
+To ensure Nginx starts successfully on first boot, create the webroot challenge directory and obtain the initial certificate using Certbot standalone with `--cert-name runnel`:
 ```bash
-# Ensure port 80 is temporarily clear
+# Create shared ACME challenge directory on host
+sudo mkdir -p /var/www/certbot
+
+# Ensure port 80 is temporarily clear before starting Docker containers
 sudo certbot certonly --standalone \
   --cert-name runnel \
   -d runnel.yourdomain.com \
@@ -154,7 +157,7 @@ sudo certbot certonly --standalone \
   --email operator@yourdomain.com \
   --non-interactive
 ```
-*Note: Using `--cert-name runnel` ensures the certificate files are located at `/etc/letsencrypt/live/runnel/fullchain.pem` and `privkey.pem`, matching the path in `infra/nginx/nginx.prod.conf`.*
+*Note: Using `--cert-name runnel` creates `/etc/letsencrypt/live/runnel/fullchain.pem` and `privkey.pem` on the host, matching the exact paths referenced in `infra/nginx/nginx.prod.conf`.*
 
 ### Step 4: Clone Repository & Configure Environment
 ```bash
@@ -178,7 +181,11 @@ chmod 600 .env.production
 ```
 
 ### Step 5: Configure Certificate Mount & Launch Production Stack
-`docker-compose.prod.yml` mounts certificates from host or docker volumes. If binding directly to host Let's Encrypt directory:
+`docker-compose.prod.yml` mounts certificates and challenges directly from host directories into Nginx:
+- `${LETSENCRYPT_DIR:-/etc/letsencrypt}:/etc/letsencrypt:ro`
+- `${CERTBOT_CHALLENGE_DIR:-/var/www/certbot}:/var/www/certbot:ro`
+
+Because the initial certificate was provisioned in Step 3, Nginx starts cleanly without missing certificate errors:
 ```bash
 # Launch the complete production stack
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
@@ -212,11 +219,16 @@ curl -fsS https://runnel.yourdomain.com/health/live
 ```
 
 ### Step 7: Automated Certificate Renewal Setup
-Certbot challenge directory `/var/www/certbot` is proxied by Nginx. Set up a bi-weekly renewal cron:
+When Nginx is running, renewal challenges are fulfilled through the HTTP webroot route (`/.well-known/acme-challenge/ -> /var/www/certbot`). Set up a bi-weekly renewal cron (or systemd timer):
 ```bash
-# Add cron job to renew and reload Nginx
-sudo crontab -l 2>/dev/null | { cat; echo "0 3 1,15 * * certbot renew --webroot -w /var/lib/docker/volumes/runnel_certbot_challenge/_data && docker compose -f /opt/runnel/docker-compose.prod.yml exec -T nginx nginx -s reload"; } | sudo crontab -
+# Add cron job to renew via webroot challenge and reload Nginx
+sudo crontab -l 2>/dev/null | { cat; echo "0 3 1,15 * * certbot renew --webroot -w /var/www/certbot --post-hook 'docker compose -f /opt/runnel/docker-compose.prod.yml exec -T nginx nginx -s reload'"; } | sudo crontab -
 ```
+*How renewal works without downtime:*
+1. Certbot writes challenge verification tokens to `/var/www/certbot/.well-known/acme-challenge/` on the host.
+2. Nginx serves the HTTP challenge on port 80 directly from the mounted `/var/www/certbot` directory.
+3. Once validated by Let's Encrypt, Certbot writes updated certificates to `/etc/letsencrypt/live/runnel/`.
+4. The `--post-hook` executes `nginx -s reload` inside the running Nginx container, applying the new certificate with zero connection drops.
 
 ---
 
