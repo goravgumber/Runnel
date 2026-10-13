@@ -36,6 +36,8 @@ import JsonViewer from "../components/ui/JsonViewer";
 import EmptyState from "../components/ui/EmptyState";
 import Button from "../components/ui/Button";
 import io from "socket.io-client";
+import { getSocketUrl } from "../utils/url";
+import { backendWakeup } from "../services/backendWakeup";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -49,7 +51,7 @@ const STATUSES = [
   { key: "cancelled", label: "Cancelled",  icon: Ban },
 ];
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
+const SOCKET_URL = getSocketUrl();
 
 // ── Utility helpers ───────────────────────────────────────────────────
 
@@ -860,6 +862,15 @@ export default function ExecutionInbox() {
     loadList();
     loadStats();
   }, [activeStatus, page]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-refresh execution list & stats when backend wakes up from sleep
+  useEffect(() => {
+    const unsubscribe = backendWakeup.onWakeup(() => {
+      loadList();
+      loadStats();
+    });
+    return unsubscribe;
+  }, [loadList, loadStats]);
 
   // ── Load detail when URL contains an ID ───────────────────────────
   useEffect(() => {

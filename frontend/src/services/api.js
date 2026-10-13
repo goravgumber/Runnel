@@ -1,11 +1,15 @@
-const BACKEND = import.meta.env.VITE_API_URL || "";
+import { backendWakeup } from "./backendWakeup.js";
+
+const BACKEND = (import.meta?.env?.VITE_API_URL || "").trim().replace(/\/+$/, "");
 
 export const toApiPath = (path) => {
+  if (!path) return BACKEND || "";
   if (/^https?:\/\//i.test(path)) return path;
-  if (path.startsWith("/api/v1")) return `${BACKEND}${path}`;
-  if (path.startsWith("/api/")) return `${BACKEND}${path}`;
-  if (path.startsWith("/")) return `${BACKEND}/api/v1${path}`;
-  return `${BACKEND}/api/v1/${path}`;
+  const clean = path.startsWith("/") ? path : `/${path}`;
+  if (clean.startsWith("/api/v1") || clean.startsWith("/api/") || clean.startsWith("/health")) {
+    return `${BACKEND}${clean}`;
+  }
+  return `${BACKEND}/api/v1${clean}`;
 };
 
 export const unwrapApiResponse = (payload) => {
@@ -60,22 +64,28 @@ export async function getFreshToken() {
 }
 
 export async function request(url, options = {}) {
+  const targetUrl = toApiPath(url);
   const token = localStorage.getItem("token");
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   if (token) headers.Authorization = `Bearer ${token}`;
 
   try {
-    const res = await fetch(url, { ...options, headers });
+    const res = await fetch(targetUrl, { ...options, headers });
     const data = await res.json().catch(() => ({}));
+
+    // If 502/503/504 gateway error from cold-start edge proxy, trigger wakeup tracking
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      backendWakeup.startWakeupTracking();
+    }
 
     // If access token expired (401) and not already retried, refresh and retry once
     if (
       res.status === 401 &&
       !options._isRetry &&
-      !url.includes("/auth/login") &&
-      !url.includes("/auth/refresh") &&
-      !url.includes("/auth/register") &&
-      !url.includes("/auth/signup")
+      !targetUrl.includes("/auth/login") &&
+      !targetUrl.includes("/auth/refresh") &&
+      !targetUrl.includes("/auth/register") &&
+      !targetUrl.includes("/auth/signup")
     ) {
       const freshToken = await getFreshToken();
       if (freshToken) {
@@ -95,11 +105,14 @@ export async function request(url, options = {}) {
         data?.error?.message ||
         data?.message ||
         "Request failed";
-      return { data: null, error: errorMsg };
+      return { data: null, error: errorMsg, status: res.status };
     }
-    return { data, error: null };
+    return { data, error: null, status: res.status };
   } catch (e) {
-    return { data: null, error: e.message };
+    if (backendWakeup.isWakeupCandidate(0, e)) {
+      backendWakeup.startWakeupTracking();
+    }
+    return { data: null, error: e.message, status: 0, isNetworkError: true };
   }
 }
 
@@ -121,9 +134,9 @@ export const authAPI = {
 };
 
 export const healthAPI = {
-  all: () => request(toApiPath("/health")),
-  live: () => request(toApiPath("/health/live")),
-  ready: () => request(toApiPath("/health/ready")),
+  all: () => request("/health"),
+  live: () => request("/health/live"),
+  ready: () => request("/health/ready"),
 };
 
 export const userAPI = {

@@ -25,12 +25,14 @@ import StatCard from "../components/ui/StatCard";
 import StatusBadge from "../components/ui/StatusBadge";
 import Button from "../components/ui/Button";
 import EmptyState from "../components/ui/EmptyState";
+import { getSocketUrl, getApiBaseUrl } from "../utils/url";
+import { backendWakeup } from "../services/backendWakeup";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
+const SOCKET_URL = getSocketUrl();
 const showDemoDispatcher =
   import.meta.env.DEV ||
   import.meta.env.VITE_ENABLE_DEMO_DISPATCHER === "true";
-const apiBaseUrl = typeof window !== "undefined" ? window.location.origin : "http://localhost:5000";
+const apiBaseUrl = getApiBaseUrl();
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -77,6 +79,14 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadDashboardData();
+  }, [loadDashboardData]);
+
+  // Auto-refresh dashboard metrics when backend wakes up from sleep
+  useEffect(() => {
+    const unsubscribe = backendWakeup.onWakeup(() => {
+      loadDashboardData();
+    });
+    return unsubscribe;
   }, [loadDashboardData]);
 
   // Socket.IO for real-time updates
@@ -317,7 +327,15 @@ export default function Dashboard() {
                   curl -X POST {apiBaseUrl}/api/v1/executions \<br />
                   &nbsp;&nbsp;-H &quot;Authorization: Bearer &lt;YOUR_API_TOKEN&gt;&quot; \<br />
                   &nbsp;&nbsp;-H &quot;Content-Type: application/json&quot; \<br />
-                  &nbsp;&nbsp;-d &apos;{JSON.stringify({ name: "Daily Invoice Batch", type: "echo", input: { count: 120 } })}&apos;
+                  &nbsp;&nbsp;-d &apos;{JSON.stringify({
+                    name: "Sync customer webhook",
+                    type: "webhook",
+                    input: {
+                      url: "https://httpbin.org/post",
+                      method: "POST",
+                      body: { customerId: "cus_1002", event: "customer.created" }
+                    }
+                  })}&apos;
                 </code>
               </div>
             </div>
