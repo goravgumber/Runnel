@@ -206,7 +206,7 @@ Runnel/
 │   ├── utils/                   # Webhook client (SSRF guard), response formatter, cache
 │   └── workers/                 # BullMQ execution worker & task handler registry
 ├── deployment/
-│   └── nginx.conf               # Production Nginx reverse proxy configuration
+│   └── runnel.service           # Systemd service unit for host-level daemon execution
 ├── docs/
 │   ├── api.md                   # Comprehensive REST API reference
 │   ├── architecture.md          # Platform architecture and operational modules
@@ -218,8 +218,17 @@ Runnel/
 │   │   ├── components/          # UI primitives: Button, Modal, Drawer, Table, StatusBadge
 │   │   ├── context/             # AuthContext (JWT management & session restore)
 │   │   ├── pages/               # Dashboard, ExecutionInbox, Login, Signup, Settings
-│   │   └── services/            # Axios/Fetch API clients & WebSocket connection
+│   │   └── services/            # API clients & Socket.IO WebSocket connection
 │   └── vite.config.js           # Vite 7 build configuration and API proxy
+├── infra/
+│   └── nginx/                   # Nginx reverse proxy configs (development & production)
+├── scripts/
+│   ├── capture_product_showcase.cjs # Headless browser CDP screenshot capture utility
+│   ├── e2e_containerized_staging_test.js # Containerized Docker Compose stack test
+│   ├── e2e_release_gate.js      # Live API lifecycle verification gate
+│   ├── healthcheck.sh           # Container health & readiness check probe
+│   ├── staging_readiness_audit.js # 11-point staging readiness audit
+│   └── verify_worker_interruption_recovery.js # Real worker interruption recovery integration test
 ├── docker-compose.yml           # Default development container orchestration
 ├── docker-compose.dev.yml       # Minimal backing-services Compose configuration
 ├── docker-compose.prod.yml      # Hardened production Compose configuration
