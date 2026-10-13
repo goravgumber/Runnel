@@ -21,7 +21,11 @@ const createLimiter = (limit, prefix) => {
     handler: (_req, res) => {
       res.status(429).json({
         success: false,
-        message: "Too many authentication attempts, please try again later.",
+        error: {
+          code: "TOO_MANY_REQUESTS",
+          message: "Too many authentication attempts. Please wait 15 minutes before trying again.",
+        },
+        message: "Too many authentication attempts. Please wait 15 minutes before trying again.",
       });
     },
   });

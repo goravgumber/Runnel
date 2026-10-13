@@ -12,7 +12,8 @@ const validateRequest = (schema) => (req, res, next) => {
       path: error.path.join("."),
       message: error.message,
     }));
-    return next(new AppError("Validation failed", 400, details));
+    const firstMsg = result.error.errors[0]?.message || "Validation failed";
+    return next(new AppError(firstMsg, 400, details));
   }
 
   req.validated = result.data;

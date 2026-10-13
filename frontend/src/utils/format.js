@@ -42,7 +42,6 @@ export function time(d) {
 
 export function datetime(d) {
   if (!d) return "—"
-  const dt = new Date(d)
   return date(d) + " at " + time(d)
 }
 

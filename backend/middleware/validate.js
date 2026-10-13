@@ -1,4 +1,5 @@
 const { validationResult } = require("express-validator");
+const AppError = require("./AppError");
 
 const validate = (rules) => [
   ...rules,
@@ -8,13 +9,18 @@ const validate = (rules) => [
       return next();
     }
 
-    return res.status(400).json({
-      success: false,
-      errors: result.array().map((error) => ({
-        field: error.path,
-        message: error.msg,
-      })),
-    });
+    const errors = result.array();
+    const firstMsg = errors[0]?.msg || "Validation failed";
+    return next(
+      new AppError(
+        firstMsg,
+        400,
+        errors.map((error) => ({
+          path: error.path,
+          message: error.msg,
+        }))
+      )
+    );
   },
 ];
 

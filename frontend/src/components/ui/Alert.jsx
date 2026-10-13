@@ -1,12 +1,12 @@
 import { useEffect } from "react"
 
-export default function Alert({ variant = "info", onClose, children, className = "" }) {
+export default function Alert({ variant = "info", onClose, autoClose = false, children, className = "" }) {
   useEffect(() => {
-    if (onClose) {
-      const timer = setTimeout(onClose, 6000)
+    if (autoClose && onClose) {
+      const timer = setTimeout(onClose, typeof autoClose === "number" ? autoClose : 6000)
       return () => clearTimeout(timer)
     }
-  }, [onClose])
+  }, [autoClose, onClose])
 
   const variants = {
     info: "border-info/30 bg-info-bg text-hi",

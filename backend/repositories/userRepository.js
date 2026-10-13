@@ -1,8 +1,22 @@
 const User = require("../models/User");
 
 class UserRepository {
+  async findByIdentifier(identifier) {
+    if (!identifier) return null;
+    const trimmed = String(identifier).trim();
+    const lower = trimmed.toLowerCase();
+    return User.findOne({
+      $or: [
+        { username: lower },
+        { username: trimmed },
+        { email: lower },
+        { email: trimmed },
+      ],
+    }).select("+password");
+  }
+
   async findByUsername(username) {
-    return User.findOne({ username }).select("+password");
+    return this.findByIdentifier(username);
   }
 
   async findById(id) {

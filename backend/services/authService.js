@@ -56,14 +56,22 @@ class AuthService {
   }
 
   async signup({ username, password }) {
-    const existingUser = await userRepository.findByUsername(username);
+    const normalizedUsername = (username || "").trim().toLowerCase();
+    if (!normalizedUsername || normalizedUsername.length < 3) {
+      throw new AppError("Username must be at least 3 characters long", 400);
+    }
+    if (!password || password.length < 8) {
+      throw new AppError("Password must be at least 8 characters long", 400);
+    }
+
+    const existingUser = await userRepository.findByUsername(normalizedUsername);
     if (existingUser) {
-      throw new AppError("Username already taken", 409);
+      throw new AppError("Username already taken. Please choose another username or sign in.", 409);
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
     const user = await userRepository.createUser({
-      username,
+      username: normalizedUsername,
       password: hashedPassword,
     });
 
@@ -80,14 +88,28 @@ class AuthService {
   }
 
   async login({ username, password }) {
-    const user = await userRepository.findByUsername(username);
+    const trimmedIdentifier = (username || "").trim();
+    if (!trimmedIdentifier) {
+      throw new AppError("Username or email is required", 400);
+    }
+    if (!password) {
+      throw new AppError("Password is required", 400);
+    }
+
+    const user = await userRepository.findByUsername(trimmedIdentifier);
     if (!user) {
-      throw new AppError("Invalid credentials", 401);
+      const isEmail = trimmedIdentifier.includes("@");
+      throw new AppError(
+        isEmail
+          ? "No account found with this email address. Please check your spelling or sign up."
+          : "No account found with this username. Please check your spelling or sign up.",
+        401
+      );
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      throw new AppError("Invalid credentials", 401);
+      throw new AppError("Incorrect password. Please double-check your password and try again.", 401);
     }
 
     user.lastLoginAt = new Date();

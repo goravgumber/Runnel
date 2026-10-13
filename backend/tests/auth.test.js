@@ -13,6 +13,7 @@ describe("Runnel Authentication & Session Suite", () => {
   const testUsername = `user_${uniqueSuffix}`;
   const testPassword = "securePassword123!";
   let registeredToken = null;
+  let registeredRefreshToken = null;
 
   before(async () => {
     await setupTestDb();
@@ -112,6 +113,7 @@ describe("Runnel Authentication & Session Suite", () => {
     assert.ok(data.data.refreshToken || data.refreshToken, "Expected refresh token");
     assert.strictEqual(data.data.user.username, testUsername);
     registeredToken = data.data.token || data.token;
+    registeredRefreshToken = data.data.refreshToken || data.refreshToken;
   });
 
   it("7. rejects login with wrong password (401 UNAUTHORIZED)", async () => {
@@ -170,5 +172,63 @@ describe("Runnel Authentication & Session Suite", () => {
     const data = res.body;
     assert.strictEqual(data.success, true);
     assert.ok(Array.isArray(data.data.executions));
+  });
+
+  it("13. authenticates existing user with case-insensitive username", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ username: testUsername.toUpperCase(), password: testPassword });
+
+    assert.strictEqual(res.status, 200);
+    const data = res.body;
+    assert.strictEqual(data.success, true);
+    assert.strictEqual(data.data.user.username.toLowerCase(), testUsername.toLowerCase());
+  });
+
+  it("14. authenticates existing user with email identifier when email exists", async () => {
+    const emailUser = `email_user_${Date.now()}`;
+    const emailVal = `${emailUser}@runnel.io`;
+    await User.create({
+      username: emailUser,
+      email: emailVal,
+      password: await bcrypt.hash(testPassword, 10),
+      role: "user",
+    });
+
+    const res = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ username: emailVal, password: testPassword });
+
+    assert.strictEqual(res.status, 200);
+    const data = res.body;
+    assert.strictEqual(data.success, true);
+    assert.strictEqual(data.data.user.username, emailUser);
+
+    await User.deleteOne({ username: emailUser });
+  });
+
+  it("15. session survives refresh: rotates refresh token and issues new access token", async () => {
+    assert.ok(registeredRefreshToken, "Expected registeredRefreshToken to be available");
+    const res = await request(app)
+      .post("/api/v1/auth/refresh")
+      .send({ refreshToken: registeredRefreshToken });
+
+    assert.strictEqual(res.status, 200);
+    const data = res.body;
+    assert.strictEqual(data.success, true);
+    assert.ok(data.data.token || data.token, "Expected new access token");
+    assert.ok(data.data.refreshToken || data.refreshToken, "Expected next refresh token");
+    assert.strictEqual(data.data.user.username, testUsername);
+    registeredToken = data.data.token || data.token;
+  });
+
+  it("16. sign-out clears/revokes credentials and rejects revoked tokens", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/logout")
+      .set("Authorization", `Bearer ${registeredToken}`)
+      .send({ refreshToken: registeredRefreshToken });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
   });
 });

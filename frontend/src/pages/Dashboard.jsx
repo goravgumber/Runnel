@@ -60,7 +60,7 @@ export default function Dashboard() {
 
       if (statsRes.data) setStats(statsRes.data);
       if (listRes.data) setRecentExecutions(listRes.data.executions || []);
-    } catch (err) {
+    } catch (_err) {
       setErrorMsg("Failed to synchronize dashboard metrics.");
     } finally {
       setLoading(false);

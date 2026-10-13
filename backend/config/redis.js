@@ -33,15 +33,30 @@ if (!isTestWithoutRedis) {
   };
 } else {
   // Stub for isolated test environments without a running Redis instance
+  const memoryStore = new Map();
   redisClient = {
     status: "end",
     on: () => {},
-    blacklistToken: async () => false,
-    isTokenBlacklisted: async () => false,
-    get: async () => null,
-    set: async () => false,
-    del: async () => false,
-    keys: async () => [],
+    blacklistToken: async (token) => {
+      memoryStore.set(`blacklist:${token}`, "true");
+      return true;
+    },
+    isTokenBlacklisted: async (token) => {
+      return memoryStore.get(`blacklist:${token}`) === "true";
+    },
+    get: async (key) => memoryStore.get(key) || null,
+    set: async (key, val) => {
+      memoryStore.set(key, val);
+      return "OK";
+    },
+    del: async (...keys) => {
+      keys.forEach((k) => memoryStore.delete(k));
+      return 1;
+    },
+    keys: async (pattern) => {
+      const prefix = pattern.replace("*", "");
+      return Array.from(memoryStore.keys()).filter((k) => k.startsWith(prefix));
+    },
     quit: async () => {},
   };
 }

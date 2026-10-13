@@ -20,14 +20,23 @@ async function request(url, options = {}) {
   try {
     const res = await fetch(url, { ...options, headers });
     const data = await res.json();
-    if (!res.ok) return { data: null, error: data.message || data.error?.message || "Request failed" };
+    if (!res.ok) {
+      const errorMsg =
+        data?.error?.details?.validationErrors?.[0]?.message ||
+        (Array.isArray(data?.error?.details) ? data.error.details[0]?.message : null) ||
+        (Array.isArray(data?.errors) ? (data.errors[0]?.message || data.errors[0]?.msg) : null) ||
+        data?.error?.message ||
+        data?.message ||
+        "Request failed";
+      return { data: null, error: errorMsg };
+    }
     return { data, error: null };
   } catch (e) {
     return { data: null, error: e.message };
   }
 }
 
-const api = (base) => ({
+export const api = (base) => ({
   get: (p) => request(`${base}${p}`),
   post: (p, b) => request(`${base}${p}`, { method: "POST", body: JSON.stringify(b) }),
   del: (p) => request(`${base}${p}`, { method: "DELETE" }),

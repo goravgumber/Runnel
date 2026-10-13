@@ -26,7 +26,7 @@ export default function Settings() {
     retryBackoffMs: 1000,
   });
 
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [showToken, setShowToken] = useState(false);

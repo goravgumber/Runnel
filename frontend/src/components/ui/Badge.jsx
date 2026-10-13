@@ -1,4 +1,4 @@
-export default function Badge({ variant = "neutral", size = "sm", dot = false, children, className = "" }) {
+export default function Badge({ variant = "neutral", _size = "sm", dot = false, children, className = "" }) {
   const variants = {
     ok: "text-ok bg-ok-bg border-ok-edge",
     warn: "text-warn bg-warn-bg border-warn-edge", 

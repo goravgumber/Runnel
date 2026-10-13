@@ -98,9 +98,37 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, [clearAuthData, validateToken]);
 
+  const extractErrorMessage = (payload, fallbackMessage) => {
+    if (!payload) return fallbackMessage;
+
+    // Check validation errors (from Zod or express-validator)
+    const validationError =
+      payload?.error?.details?.validationErrors?.[0]?.message ||
+      (Array.isArray(payload?.error?.details) ? payload.error.details[0]?.message : null) ||
+      (Array.isArray(payload?.errors) ? (payload.errors[0]?.message || payload.errors[0]?.msg) : null);
+
+    if (validationError) return validationError;
+
+    // Check message in error object
+    if (payload?.error?.message && typeof payload.error.message === "string") {
+      return payload.error.message;
+    }
+
+    // Check top-level message
+    if (payload?.message && typeof payload.message === "string") {
+      return payload.message;
+    }
+
+    // Check string error
+    if (typeof payload?.error === "string") {
+      return payload.error;
+    }
+
+    return fallbackMessage;
+  };
+
   const login = async (username, password) => {
     try {
-      setLoading(true);
       setAuthError(null);
 
       const res = await fetch(toApiPath("/auth/login"), {
@@ -113,12 +141,14 @@ export const AuthProvider = ({ children }) => {
       const data = unwrapApiResponse(payload);
 
       if (!res.ok) {
-        const errorDetail =
-          payload?.error?.details?.validationErrors?.[0]?.message ||
-          (Array.isArray(payload?.error?.details) ? payload.error.details[0]?.message : null) ||
-          payload?.error?.message ||
-          payload?.message ||
-          "Login failed";
+        const errorDetail = extractErrorMessage(
+          payload,
+          res.status === 401
+            ? "Invalid username or password. Please try again."
+            : res.status === 429
+            ? "Too many sign-in attempts. Please try again later."
+            : "Sign in failed. Please try again."
+        );
         throw new Error(errorDetail);
       }
 
@@ -133,17 +163,19 @@ export const AuthProvider = ({ children }) => {
       return { success: true, data };
 
     } catch (err) {
-      const errorMessage = err.message || "Login failed";
+      const isNetwork =
+        err.name === "TypeError" ||
+        /fetch|network|connection|econnrefused|failed to fetch/i.test(err.message || "");
+      const errorMessage = isNetwork
+        ? "Runnel backend service is currently unreachable. Please verify your connection."
+        : (err.message || "Login failed");
       setAuthError(errorMessage);
       return { success: false, error: errorMessage };
-    } finally {
-      setLoading(false);
     }
   };
 
   const signup = async (username, password) => {
     try {
-      setLoading(true);
       setAuthError(null);
 
       const res = await fetch(toApiPath("/auth/signup"), {
@@ -155,23 +187,28 @@ export const AuthProvider = ({ children }) => {
       const payload = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        const errorDetail =
-          payload?.error?.details?.validationErrors?.[0]?.message ||
-          (Array.isArray(payload?.error?.details) ? payload.error.details[0]?.message : null) ||
-          payload?.error?.message ||
-          payload?.message ||
-          "Signup failed";
+        const errorDetail = extractErrorMessage(
+          payload,
+          res.status === 409
+            ? "Username already taken. Please choose another username or sign in."
+            : res.status === 429
+            ? "Too many registration attempts. Please try again later."
+            : "Signup failed. Please try again."
+        );
         throw new Error(errorDetail);
       }
 
       return { success: true, data: payload };
 
     } catch (err) {
-      const errorMessage = err.message || "Signup failed";
+      const isNetwork =
+        err.name === "TypeError" ||
+        /fetch|network|connection|econnrefused|failed to fetch/i.test(err.message || "");
+      const errorMessage = isNetwork
+        ? "Runnel backend service is currently unreachable. Please verify your connection."
+        : (err.message || "Signup failed");
       setAuthError(errorMessage);
       return { success: false, error: errorMessage };
-    } finally {
-      setLoading(false);
     }
   };
 

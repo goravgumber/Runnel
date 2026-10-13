@@ -46,7 +46,9 @@ export default function Layout() {
         if (isMounted && data) {
           setStats(data);
         }
-      } catch (_) {}
+      } catch (_err) {
+        // Ignore background badge stats poll error
+      }
     };
 
     fetchBadgeStats();
