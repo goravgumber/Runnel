@@ -21,6 +21,7 @@ const AppError         = require("../middleware/AppError");
 const { sendSuccess }  = require("../utils/responseFormatter");
 const logger           = require("../utils/logger");
 const cache            = require("../utils/cache");
+const config           = require("../config/env");
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -72,6 +73,32 @@ const submitExecution = async (req, res) => {
     scheduledAt,
   } = req.body;
   const userId = req.user.id;
+
+  // ── Supported types validation ──────────────────────────────────────
+  const SUPPORTED_TYPES = ["echo", "fail", "webhook"];
+  if (!SUPPORTED_TYPES.includes(type)) {
+    throw new AppError(`Invalid execution type '${type}'. Supported types: ${SUPPORTED_TYPES.join(", ")}`, 400);
+  }
+
+  // ── Production demo guard ──────────────────────────────────────────
+  if (["echo", "fail"].includes(type) && !config.ENABLE_DEMO_HANDLERS && config.NODE_ENV === "production") {
+    throw new AppError("Demo handlers ('echo', 'fail') are disabled in production", 400);
+  }
+
+  // ── Webhook input validation ────────────────────────────────────────
+  if (type === "webhook") {
+    if (!input || typeof input !== "object" || !input.url) {
+      throw new AppError("Webhook execution requires an input object with a 'url' property", 400);
+    }
+    try {
+      const u = new URL(input.url);
+      if (!["http:", "https:"].includes(u.protocol)) {
+        throw new Error();
+      }
+    } catch {
+      throw new AppError("Webhook 'url' must be a valid HTTP or HTTPS URL", 400);
+    }
+  }
 
   // ── Idempotency check ──────────────────────────────────────────────
   if (idempotencyKey) {
@@ -352,4 +379,5 @@ module.exports = {
   retryExecution,
   cancelExecution,
   hardDeleteExecution,
+  enqueueExecution,
 };

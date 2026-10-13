@@ -3,6 +3,7 @@ const config = require("../config/env");
 const redisClient = require("../config/redis");
 const { getSystemMetrics } = require("../utils/systemMetrics");
 const { getRunnelQueue } = require("../queues");
+const { getRecoveryMetrics } = require("../services/executionRecoveryService");
 const { sendSuccess, sendError } = require("../utils/responseFormatter");
 const errorCodes = require("../utils/errorCodes");
 
@@ -49,29 +50,37 @@ const healthCheck = async (req, res, next) => {
       }
     }
 
-    const metrics = await getSystemMetrics();
-    const allHealthy = mongodbStatus === "connected" && (redisStatus === "connected" || config.NODE_ENV !== "production");
+    const isProd = config.NODE_ENV === "production";
+    const allHealthy =
+      mongodbStatus === "connected" &&
+      (redisStatus === "connected" || !isProd);
     const overallStatus = allHealthy ? "pass" : "fail";
 
     const payload = {
       status: overallStatus,
-      uptime: process.uptime(),
+      uptime: Math.round(process.uptime()),
       timestamp: new Date().toISOString(),
       services: {
         mongodb: { status: mongodbStatus, latency_ms: mongodbLatency },
         redis: { status: redisStatus, latency_ms: redisLatency },
         queue: { name: "runnel-executions", status: queueStatus, counts: queueCounts },
+        recovery: getRecoveryMetrics(),
       },
       checks: {
         websocket: { enabled: !!req.app.get("io") },
-        memoryUsage: {
-          rss: process.memoryUsage().rss,
-          heapUsed: process.memoryUsage().heapUsed,
-          heapTotal: process.memoryUsage().heapTotal,
-        },
       },
-      metrics,
     };
+
+    // Include diagnostic OS hardware and memory telemetry only in non-production environments
+    if (!isProd) {
+      const metrics = await getSystemMetrics();
+      payload.checks.memoryUsage = {
+        rss: process.memoryUsage().rss,
+        heapUsed: process.memoryUsage().heapUsed,
+        heapTotal: process.memoryUsage().heapTotal,
+      };
+      payload.metrics = metrics;
+    }
 
     if (overallStatus === "pass") {
       return sendSuccess(res, payload, 200, "Health check passed");
@@ -85,19 +94,26 @@ const healthCheck = async (req, res, next) => {
 const livenessCheck = async (_req, res) => {
   return sendSuccess(res, {
     status: "alive",
-    uptime: process.uptime(),
+    uptime: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),
   }, 200, "Service is alive");
 };
 
 const readinessCheck = async (req, res, next) => {
   try {
+    const isProd = config.NODE_ENV === "production";
     const mongodbReady = mongoose.connection.readyState === 1;
+    const redisReady = redisClient ? (redisClient.status === "ready" || !isProd) : !isProd;
     const ioReady = !!req.app.get("io");
-    const ready = mongodbReady && ioReady;
+    const ready = mongodbReady && redisReady && ioReady;
+
     const payload = {
       status: ready ? "ready" : "not_ready",
-      checks: { mongodb: mongodbReady, websocket: ioReady },
+      checks: {
+        mongodb: mongodbReady,
+        redis: redisReady,
+        websocket: ioReady,
+      },
       timestamp: new Date().toISOString(),
     };
     if (!ready) {

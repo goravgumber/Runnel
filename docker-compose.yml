@@ -39,7 +39,7 @@ services:
       - MONGO_URI=mongodb://mongodb:27017/runnel
       - REDIS_URL=redis://redis:6379
       - FRONTEND_URL=http://localhost
-      - JWT_SECRET=${JWT_SECRET:-runnel_production_secret_key_9999}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set for production release}
     ports:
       - "5000:5000"
     healthcheck:

@@ -17,7 +17,7 @@ import { useAuth } from "../context/AuthContext";
 import { userAPI, authAPI } from "../services/api";
 
 export default function Settings() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
 
   // Execution policies state
   const [policies, setPolicies] = useState({
@@ -29,8 +29,6 @@ export default function Settings() {
   const [_loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
-  const [showToken, setShowToken] = useState(false);
-  const [copiedToken, setCopiedToken] = useState(false);
   const [copiedCurl, setCopiedCurl] = useState(false);
   const [revokingSessions, setRevokingSessions] = useState(false);
 
@@ -60,16 +58,10 @@ export default function Settings() {
     fetchSettings();
   }, []);
 
-  const handleCopyToken = () => {
-    if (!token) return;
-    navigator.clipboard.writeText(token).then(() => {
-      setCopiedToken(true);
-      setTimeout(() => setCopiedToken(false), 2000);
-    });
-  };
+  const apiBaseUrl = typeof window !== "undefined" ? window.location.origin : "http://localhost:5000";
 
-  const curlCommand = `curl -X POST http://localhost:5000/api/v1/executions \\
-  -H "Authorization: Bearer ${showToken && token ? token : "<YOUR_API_TOKEN>"}" \\
+  const curlCommand = `curl -X POST ${apiBaseUrl}/api/v1/executions \\
+  -H "Authorization: Bearer <YOUR_API_TOKEN>" \\
   -H "Content-Type: application/json" \\
   -d '{
     "name": "Sync customer webhook",
@@ -78,15 +70,7 @@ export default function Settings() {
   }'`;
 
   const handleCopyCurl = () => {
-    const fullCurl = `curl -X POST http://localhost:5000/api/v1/executions \\
-  -H "Authorization: Bearer ${token || "YOUR_TOKEN"}" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "name": "Sync customer webhook",
-    "type": "echo",
-    "input": {"customerId": "cus_1002"}
-  }'`;
-    navigator.clipboard.writeText(fullCurl).then(() => {
+    navigator.clipboard.writeText(curlCommand).then(() => {
       setCopiedCurl(true);
       setTimeout(() => setCopiedCurl(false), 2000);
     });
@@ -200,7 +184,7 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* 2. Developer API Token & Integration */}
+      {/* 2. Programmatic API Access & Integration */}
       <div className="bg-surface border border-stone-border rounded-xl p-6 shadow-card space-y-4">
         <div className="flex items-center justify-between border-b border-stone-border pb-4">
           <div className="flex items-center gap-3">
@@ -208,48 +192,38 @@ export default function Settings() {
               <Key className="w-5 h-5 text-forest" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-charcoal font-sans">Developer API Access</h2>
-              <p className="text-xs text-charcoal-muted font-mono">Programmatic access token for dispatching tasks</p>
+              <h2 className="text-base font-bold text-charcoal font-sans">Programmatic API Integration</h2>
+              <p className="text-xs text-charcoal-muted font-mono">Authenticate backend jobs and dispatch execution pipelines</p>
             </div>
           </div>
+          <a
+            href="/api/docs"
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs font-mono font-semibold text-forest hover:underline hidden sm:inline-flex items-center gap-1"
+          >
+            OpenAPI Docs ↗
+          </a>
         </div>
 
-        <div>
-          <label className={labelCls}>Active Bearer Token</label>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 bg-canvas-subtle border border-stone-border rounded-lg px-3.5 py-2.5 font-mono text-xs text-charcoal truncate">
-              {token ? (showToken ? token : `${token.slice(0, 18)}••••••••••••••••••••••••••••••••••••••••${token.slice(-6)}`) : "No active token"}
-            </div>
-            <button
-              onClick={() => setShowToken(!showToken)}
-              className="p-2.5 rounded-lg border border-stone-border bg-surface hover:bg-canvas-well text-charcoal-secondary transition-colors cursor-pointer"
-              title={showToken ? "Hide token" : "Show token"}
-            >
-              {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-            <button
-              onClick={handleCopyToken}
-              className="p-2.5 rounded-lg border border-stone-border bg-surface hover:bg-canvas-well text-charcoal transition-colors flex items-center gap-1.5 cursor-pointer"
-              title="Copy token to clipboard"
-            >
-              {copiedToken ? <Check className="w-4 h-4 text-[#2F7D5A]" /> : <Copy className="w-4 h-4" />}
-              <span className="text-xs font-mono hidden sm:inline">{copiedToken ? "Copied" : "Copy"}</span>
-            </button>
-          </div>
+        <div className="rounded-lg border border-stone-border bg-canvas-subtle p-3.5 space-y-2">
+          <p className="text-xs text-charcoal-secondary leading-relaxed font-sans">
+            Interactive browser login sessions are secured with short-lived tokens and are not intended for hardcoded script usage. To integrate background services or dispatch executions programmatically, authenticate via <code className="px-1.5 py-0.5 rounded bg-surface border border-stone-border text-charcoal font-mono text-2xs">POST /api/v1/auth/login</code> using your developer account credentials to obtain an access token.
+          </p>
         </div>
 
         {/* Quickstart API snippet */}
-        <div className="pt-2">
+        <div className="pt-1">
           <div className="flex items-center justify-between mb-1.5">
             <label className="text-xs font-mono uppercase tracking-wider text-charcoal-secondary flex items-center gap-1.5">
-              <Terminal className="w-3.5 h-3.5 text-forest" /> Quickstart cURL Example
+              <Terminal className="w-3.5 h-3.5 text-forest" /> Dispatch Execution Snippet
             </label>
             <button
               onClick={handleCopyCurl}
               className="text-2xs font-mono text-charcoal-secondary hover:text-charcoal flex items-center gap-1 transition-colors cursor-pointer"
             >
               {copiedCurl ? <Check className="w-3 h-3 text-[#2F7D5A]" /> : <Copy className="w-3 h-3" />}
-              <span>{copiedCurl ? "Copied" : "Copy snippet"}</span>
+              <span>{copiedCurl ? "Copied" : "Copy cURL"}</span>
             </button>
           </div>
           <pre className="bg-canvas-subtle border border-stone-border rounded-lg p-3 text-xs font-mono text-charcoal leading-relaxed overflow-x-auto">

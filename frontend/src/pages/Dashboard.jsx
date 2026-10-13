@@ -27,6 +27,10 @@ import Button from "../components/ui/Button";
 import EmptyState from "../components/ui/EmptyState";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
+const showDemoDispatcher =
+  import.meta.env.DEV ||
+  import.meta.env.VITE_ENABLE_DEMO_DISPATCHER === "true";
+const apiBaseUrl = typeof window !== "undefined" ? window.location.origin : "http://localhost:5000";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -275,21 +279,33 @@ export default function Dashboard() {
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <Button
                 variant="primary"
-                onClick={() => handleQuickSubmit("echo")}
-                loading={quickSubmitting}
-                icon={<Play className="w-3.5 h-3.5" />}
+                onClick={() => navigate("/executions?new=true")}
+                icon={<Plus className="w-3.5 h-3.5" />}
               >
-                Dispatch Test Task (Echo)
+                Submit First Execution
               </Button>
 
-              <Button
-                variant="secondary"
-                onClick={() => handleQuickSubmit("fail")}
-                loading={quickSubmitting}
-                icon={<AlertTriangle className="w-3.5 h-3.5 text-terracotta" />}
-              >
-                Test Recovery Flow (Fail & Retry)
-              </Button>
+              {showDemoDispatcher && (
+                <>
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleQuickSubmit("echo")}
+                    loading={quickSubmitting}
+                    icon={<Play className="w-3.5 h-3.5" />}
+                  >
+                    Dispatch Demo Task (Echo)
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleQuickSubmit("fail")}
+                    loading={quickSubmitting}
+                    icon={<AlertTriangle className="w-3.5 h-3.5 text-terracotta" />}
+                  >
+                    Test Recovery Flow (Fail &amp; Retry)
+                  </Button>
+                </>
+              )}
             </div>
 
             <div className="mt-4 pt-4 border-t border-stone-border text-xs font-mono text-charcoal-secondary">
@@ -298,7 +314,7 @@ export default function Dashboard() {
               </p>
               <div className="bg-canvas-well border border-stone-border rounded-lg p-3 overflow-x-auto text-charcoal">
                 <code>
-                  curl -X POST http://localhost:5000/api/v1/executions \<br />
+                  curl -X POST {apiBaseUrl}/api/v1/executions \<br />
                   &nbsp;&nbsp;-H &quot;Authorization: Bearer &lt;YOUR_API_TOKEN&gt;&quot; \<br />
                   &nbsp;&nbsp;-H &quot;Content-Type: application/json&quot; \<br />
                   &nbsp;&nbsp;-d &apos;{JSON.stringify({ name: "Daily Invoice Batch", type: "echo", input: { count: 120 } })}&apos;
@@ -450,54 +466,56 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Right Column: Failure Intelligence & Quick Dispatcher */}
+        {/* Right Column: Failure Intelligence & Worker Telemetry */}
         <div className="space-y-6">
-          {/* Quick Dispatch Card */}
-          <div className="bg-surface border border-stone-border rounded-2xl p-5 shadow-card space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-charcoal-muted">
-                <Terminal className="w-4 h-4 text-forest" /> Test &amp; Demo Dispatcher
+          {/* Quick Dispatch Card (Development & Demo only) */}
+          {showDemoDispatcher && (
+            <div className="bg-surface border border-stone-border rounded-2xl p-5 shadow-card space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-charcoal-muted">
+                  <Terminal className="w-4 h-4 text-forest" /> Test &amp; Demo Dispatcher
+                </div>
+                <span className="text-2xs font-mono font-semibold px-2 py-0.5 rounded-full bg-forest-ghost text-forest border border-forest-border">
+                  Demo Utility
+                </span>
               </div>
-              <span className="text-2xs font-mono font-semibold px-2 py-0.5 rounded-full bg-forest-ghost text-forest border border-forest-border">
-                Demo Utility
-              </span>
-            </div>
-            <p className="text-xs text-charcoal-secondary leading-relaxed">
-              Dispatches actual background tasks to the local BullMQ worker to test queue ingestion, lifecycle tracking, and error recovery.
-            </p>
+              <p className="text-xs text-charcoal-secondary leading-relaxed">
+                Dispatches actual background tasks to the local BullMQ worker to test queue ingestion, lifecycle tracking, and error recovery.
+              </p>
 
-            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleQuickSubmit("echo")}
+                  loading={quickSubmitting}
+                  className="w-full text-xs"
+                >
+                  + Echo Task (Demo)
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleQuickSubmit("fail")}
+                  loading={quickSubmitting}
+                  className="w-full text-xs text-terracotta border-terracotta/30"
+                >
+                  + Fail Task (Demo)
+                </Button>
+              </div>
+
               <Button
-                variant="secondary"
+                variant="primary"
                 size="sm"
-                onClick={() => handleQuickSubmit("echo")}
-                loading={quickSubmitting}
+                onClick={() => navigate("/executions?new=true")}
                 className="w-full text-xs"
+                icon={<Plus className="w-3.5 h-3.5" />}
               >
-                + Echo Task (Demo)
-              </Button>
-
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => handleQuickSubmit("fail")}
-                loading={quickSubmitting}
-                className="w-full text-xs text-terracotta border-terracotta/30"
-              >
-                + Fail Task (Demo)
+                Configure Custom Execution
               </Button>
             </div>
-
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => navigate("/executions?new=true")}
-              className="w-full text-xs"
-              icon={<Plus className="w-3.5 h-3.5" />}
-            >
-              Configure Custom Execution
-            </Button>
-          </div>
+          )}
 
           {/* Operational Health & Worker Telemetry sourced from /health */}
           {(() => {

@@ -120,4 +120,51 @@ describe("Execution Submission (POST /api/v1/executions)", () => {
       queues.addJob = origAddJob;
     }
   });
+
+  it("submits valid webhook execution and validates input payload", async () => {
+    const res = await request(app)
+      .post("/api/v1/executions")
+      .set("Authorization", `Bearer ${auth.token}`)
+      .send({
+        name: "Production Webhook Dispatch",
+        type: "webhook",
+        input: {
+          url: "https://api.example.com/webhooks/dispatch",
+          method: "POST",
+          body: { orderId: "12345" },
+        },
+      });
+
+    assert.equal(res.status, 202);
+    assert.equal(res.body.data.type, "webhook");
+    assert.equal(res.body.data.status, "pending");
+  });
+
+  it("returns 400 when webhook input lacks a valid URL", async () => {
+    const res = await request(app)
+      .post("/api/v1/executions")
+      .set("Authorization", `Bearer ${auth.token}`)
+      .send({
+        name: "Invalid Webhook",
+        type: "webhook",
+        input: { url: "not-a-valid-url" },
+      });
+
+    assert.equal(res.status, 400);
+    assert.match(res.body.error.message, /valid HTTP or HTTPS URL/);
+  });
+
+  it("returns 400 when an unsupported execution type is submitted", async () => {
+    const res = await request(app)
+      .post("/api/v1/executions")
+      .set("Authorization", `Bearer ${auth.token}`)
+      .send({
+        name: "Invalid Type Job",
+        type: "unsupported_type",
+        input: {},
+      });
+
+    assert.equal(res.status, 400);
+    assert.match(res.body.error.message, /Invalid execution type/);
+  });
 });

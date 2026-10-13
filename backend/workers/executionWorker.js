@@ -30,6 +30,9 @@ const Execution         = require("../models/Execution");
 const ExecutionAttempt  = require("../models/ExecutionAttempt");
 const logger            = require("../utils/logger");
 
+const { dispatchWebhook } = require("../utils/webhookClient");
+const { startRecoveryScheduler, stopRecoveryScheduler } = require("../services/executionRecoveryService");
+
 // ── Handler registry ─────────────────────────────────────────────────
 // Each handler receives (input, { job, exec }) and must return a
 // JSON-serialisable result or throw an Error.
@@ -50,10 +53,27 @@ const HANDLER_REGISTRY = {
     err.code = "INTENTIONAL_FAILURE";
     throw err;
   },
+  /**
+   * webhook — performs HTTP dispatch / webhook delivery.
+   * Primary production handler for Runnel's asynchronous recovery inbox.
+   * Enforces URL validation, DNS rebinding pinning, SSRF checks, redirect limits, and response bounds.
+   */
+  webhook: async (input) => {
+    const allowInternal = process.env.NODE_ENV === "test";
+    return dispatchWebhook(input, { allowInternal });
+  },
 };
 
 function resolveHandler(type) {
-  return HANDLER_REGISTRY[type] || HANDLER_REGISTRY["echo"];
+  if (HANDLER_REGISTRY[type]) {
+    return HANDLER_REGISTRY[type];
+  }
+  if (process.env.NODE_ENV === "production") {
+    const err = new Error(`Unsupported execution handler type: '${type}'`);
+    err.code = "UNKNOWN_HANDLER";
+    throw err;
+  }
+  return HANDLER_REGISTRY["echo"];
 }
 
 // ── Worker factory ───────────────────────────────────────────────────
@@ -231,11 +251,13 @@ const startExecutionWorker = (io) => {
     logger.error(`[ExecWorker] Job ${job?.id} failed after all attempts: ${err.message}`)
   );
 
+  startRecoveryScheduler({ io });
   logger.info("Execution worker started (queue: runnel-executions, concurrency: 4)");
   return activeWorker;
 };
 
 const stopExecutionWorker = async () => {
+  stopRecoveryScheduler();
   if (activeWorker) {
     try {
       await activeWorker.close();

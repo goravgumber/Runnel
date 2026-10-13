@@ -1,6 +1,7 @@
 const { describe, it, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const mongoose = require("mongoose");
+const http = require("node:http");
 const {
   setupTestDb,
   teardownTestDb,
@@ -52,6 +53,76 @@ describe("Execution Worker Unit Tests", () => {
           return true;
         }
       );
+    });
+
+    it("webhook handler delivers payload and returns response data", async () => {
+      const server = http.createServer((req, res) => {
+        let body = "";
+        req.on("data", (chunk) => { body += chunk; });
+        req.on("end", () => {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ received: JSON.parse(body), status: "acknowledged" }));
+        });
+      });
+      await new Promise((resolve) => server.listen(0, resolve));
+      const port = server.address().port;
+
+      try {
+        const handler = resolveHandler("webhook");
+        const res = await handler({
+          url: `http://127.0.0.1:${port}/webhook`,
+          method: "POST",
+          body: { event: "order_dispatched" },
+        });
+        assert.equal(res.status, 200);
+        assert.equal(res.data.status, "acknowledged");
+        assert.deepEqual(res.data.received, { event: "order_dispatched" });
+      } finally {
+        await new Promise((resolve) => server.close(resolve));
+      }
+    });
+
+    it("webhook handler throws structured HTTP_500 on server failure", async () => {
+      const server = http.createServer((req, res) => {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Internal Gateway Error" }));
+      });
+      await new Promise((resolve) => server.listen(0, resolve));
+      const port = server.address().port;
+
+      try {
+        const handler = resolveHandler("webhook");
+        await assert.rejects(
+          async () => {
+            await handler({ url: `http://127.0.0.1:${port}/fail` });
+          },
+          (err) => {
+            assert.equal(err.code, "HTTP_500");
+            return true;
+          }
+        );
+      } finally {
+        await new Promise((resolve) => server.close(resolve));
+      }
+    });
+
+    it("webhook handler enforces SSRF protection in production", async () => {
+      const prevEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = "production";
+      try {
+        const handler = resolveHandler("webhook");
+        await assert.rejects(
+          async () => {
+            await handler({ url: "http://169.254.169.254/latest/meta-data/" });
+          },
+          (err) => {
+            assert.equal(err.code, "SSRF_BLOCKED");
+            return true;
+          }
+        );
+      } finally {
+        process.env.NODE_ENV = prevEnv;
+      }
     });
 
     it("defaults to echo handler when an unknown type is requested", () => {

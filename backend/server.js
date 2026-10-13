@@ -121,11 +121,6 @@ const ensureUserIndexes = async () => {
   try {
     const collection = mongoose.connection.collection("users");
     const indexes = await collection.indexes();
-    const hasObsoleteEmailIndex = indexes.some((idx) => idx.name === "email_1");
-    if (hasObsoleteEmailIndex) {
-      await collection.dropIndex("email_1");
-      logger.info("Dropped obsolete email_1 unique index from users collection");
-    }
     const hasUsernameIndex = indexes.some((idx) => idx.name === "username_1");
     if (!hasUsernameIndex) {
       await collection.createIndex({ username: 1 }, { unique: true, background: true });
