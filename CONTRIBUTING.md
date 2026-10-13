@@ -97,10 +97,28 @@ When writing code for Runnel, adhere strictly to these principles:
 
 ---
 
-## 5. Pull Request Process
+## 5. Branching Strategy & Pull Request Process
 
-1. Fork the repository and create your feature branch from `main` (`git checkout -b feature/my-improvement`).
-2. Make your changes with concise, informative commit messages.
-3. Run the full verification suite (`backend` tests, `frontend` lint/build, Docker compose validation).
-4. Push your branch to your fork and submit a Pull Request against `main`.
-5. Clearly describe the motivation, changes made, and include test verification evidence.
+Runnel utilizes an adapted Git-Flow model with a stable release branch (`main`), shared integration branch (`develop`), and short-lived supporting branches (`feature/*`, `fix/*`, `hotfix/*`, `release/*`).
+
+For the comprehensive guide, branching diagrams, release steps, and branch protection recommendations, see **[docs/contributing.md](docs/contributing.md)**.
+
+### Quick Workflow Summary:
+1. **Branch from `develop`:**
+   ```bash
+   git switch develop
+   git pull origin develop
+   git switch -c feature/your-feature-name
+   ```
+2. **Implement & Test:** Make focused changes with structured commit messages (`feat:`, `fix:`, etc.).
+3. **Verify Locally:** Ensure all checks pass:
+   ```bash
+   cd backend && npm run check && npm test
+   cd ../frontend && npm run lint && npm run build
+   ```
+4. **Publish & Open PR:**
+   ```bash
+   git push -u origin feature/your-feature-name
+   ```
+   Submit a Pull Request with base branch set to **`develop`** (never directly to `main`).
+5. **Review & Merge:** Once peer-reviewed and CI passes, your branch is merged into `develop`. Release candidates are later verified and merged into `main` with a semantic version tag (e.g., `v1.0.0`).

@@ -210,6 +210,7 @@ Runnel/
 ├── docs/
 │   ├── api.md                   # Comprehensive REST API reference
 │   ├── architecture.md          # Platform architecture and operational modules
+│   ├── contributing.md          # Git branching model, PR workflows & release lifecycle
 │   ├── deployment.md            # Production deployment topologies and runbooks
 │   ├── development.md           # Local setup, environment contracts, and developer tips
 │   └── testing.md               # Test matrix, SSRF validation, and recovery tests
@@ -232,7 +233,7 @@ Runnel/
 ├── docker-compose.yml           # Default development container orchestration
 ├── docker-compose.dev.yml       # Minimal backing-services Compose configuration
 ├── docker-compose.prod.yml      # Hardened production Compose configuration
-├── CONTRIBUTING.md              # Contributor guidelines and standards
+├── CONTRIBUTING.md              # Contributor quickstart & branch model overview
 ├── SECURITY.md                  # Security policies and vulnerability disclosure
 └── LICENSE                      # MIT License
 ```
@@ -268,8 +269,8 @@ For complete details on test coverage and security boundary tests, see [docs/tes
 - **[Local Development Guide](docs/development.md)** — Step-by-step setup, configuration reference, and development workflows.
 - **[Production Deployment Guide](docs/deployment.md)** — VPS setup, Docker Compose production, TLS termination, and backup runbooks.
 - **[Testing & Quality Assurance Guide](docs/testing.md)** — Hermetic test details, webhook SSRF test matrix, and recovery verification.
+- **[Contributing & Branching Strategy](docs/contributing.md)** — Git branching model (`main`, `develop`, `feature/*`), PR workflow, release cycles, and code of conduct.
 - **[Security Policy](SECURITY.md)** — Vulnerability reporting guidelines and architectural defenses.
-- **[Contributing Guidelines](CONTRIBUTING.md)** — Code of conduct and pull request standards.
 
 ---
 
