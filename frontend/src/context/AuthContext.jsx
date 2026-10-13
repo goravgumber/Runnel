@@ -19,6 +19,35 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem("refreshToken");
   }, []);
 
+  const refreshAccessToken = useCallback(async (tokenOverride) => {
+    const activeRefreshToken = tokenOverride || refreshToken || localStorage.getItem("refreshToken");
+    if (!activeRefreshToken) {
+      throw new Error("No refresh token available");
+    }
+
+    const res = await fetch(toApiPath("/auth/refresh"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: activeRefreshToken }),
+    });
+
+    const payload = await res.json().catch(() => null);
+    if (!res.ok) {
+      clearAuthData();
+      throw new Error(payload?.error?.message || payload?.message || "Session refresh failed");
+    }
+
+    const data = unwrapApiResponse(payload);
+    setUser(data.user);
+    setToken(data.token);
+    setRefreshToken(data.refreshToken);
+    localStorage.setItem("user", JSON.stringify(data.user));
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("refreshToken", data.refreshToken);
+
+    return data.token;
+  }, [clearAuthData, refreshToken]);
+
   const validateToken = useCallback(async (tokenToValidate) => {
     try {
       const res = await fetch(toApiPath("/auth/validate"), {
@@ -30,13 +59,24 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          const savedRefreshToken = localStorage.getItem("refreshToken");
+          if (savedRefreshToken) {
+            try {
+              await refreshAccessToken(savedRefreshToken);
+              return;
+            } catch {
+              // Refresh failed, fall through to clear
+            }
+          }
+        }
         throw new Error("Token validation failed");
       }
     } catch (_error) {
       console.warn("Token validation failed, clearing auth data");
       clearAuthData();
     }
-  }, [clearAuthData]);
+  }, [clearAuthData, refreshAccessToken]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
@@ -69,11 +109,17 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ username, password }),
       });
 
-      const payload = await res.json();
+      const payload = await res.json().catch(() => ({}));
       const data = unwrapApiResponse(payload);
 
       if (!res.ok) {
-        throw new Error(payload?.error?.message || payload?.message || "Login failed");
+        const errorDetail =
+          payload?.error?.details?.validationErrors?.[0]?.message ||
+          (Array.isArray(payload?.error?.details) ? payload.error.details[0]?.message : null) ||
+          payload?.error?.message ||
+          payload?.message ||
+          "Login failed";
+        throw new Error(errorDetail);
       }
 
       setUser(data.user);
@@ -106,10 +152,16 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ username, password }),
       });
 
-      const payload = await res.json();
+      const payload = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(payload?.error?.message || payload?.message || "Signup failed");
+        const errorDetail =
+          payload?.error?.details?.validationErrors?.[0]?.message ||
+          (Array.isArray(payload?.error?.details) ? payload.error.details[0]?.message : null) ||
+          payload?.error?.message ||
+          payload?.message ||
+          "Signup failed";
+        throw new Error(errorDetail);
       }
 
       return { success: true, data: payload };
@@ -122,34 +174,6 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   };
-
-  const refreshAccessToken = useCallback(async () => {
-    if (!refreshToken) {
-      throw new Error("No refresh token available");
-    }
-
-    const res = await fetch(toApiPath("/auth/refresh"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-    });
-
-    const payload = await res.json().catch(() => null);
-    if (!res.ok) {
-      clearAuthData();
-      throw new Error(payload?.error?.message || payload?.message || "Session refresh failed");
-    }
-
-    const data = unwrapApiResponse(payload);
-    setUser(data.user);
-    setToken(data.token);
-    setRefreshToken(data.refreshToken);
-    localStorage.setItem("user", JSON.stringify(data.user));
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("refreshToken", data.refreshToken);
-
-    return data.token;
-  }, [clearAuthData, refreshToken]);
 
   const logout = useCallback(async () => {
     try {

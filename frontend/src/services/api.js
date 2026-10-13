@@ -50,6 +50,7 @@ export const authAPI = {
   register: (body) => request(`${bk()}/auth/register`, { method: "POST", body: JSON.stringify(body) }),
   signup: (body) => request(`${bk()}/auth/signup`, { method: "POST", body: JSON.stringify(body) }),
   logout: () => request(`${bk()}/auth/logout`, { method: "POST" }),
+  logoutAll: () => request(`${bk()}/auth/logout-all`, { method: "POST" }),
   me: () => request(`${bk()}/auth/me`),
 };
 

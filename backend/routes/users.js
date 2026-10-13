@@ -10,6 +10,7 @@ const ALLOWED_SETTINGS = [
   "defaultSpeed", "autoRefreshInterval",
   "alertOnCollapseRisk", "alertOnExtinction",
   "showTickNumbers", "numberFormat",
+  "defaultMaxAttempts", "defaultExecutionTimeoutMs", "retryBackoffMs",
 ];
 
 router.get("/settings", authMiddleware, async (req, res) => {

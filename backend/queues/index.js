@@ -4,8 +4,10 @@ const logger = require("../utils/logger");
 
 const queues = {};
 
+const RUNNEL_QUEUE = "runnel-executions";
+
 const getQueue = (name) => {
-  if (!redisClient) {
+  if (!redisClient || redisClient.status === "end" || !redisClient.status) {
     logger.warn(`Redis is not connected; cannot initialize queue: ${name}`);
     return null;
   }
@@ -45,7 +47,21 @@ const addJob = async (queueName, jobName, data, options = {}) => {
   }
 };
 
+const getRunnelQueue = () => getQueue(RUNNEL_QUEUE);
+
+const closeQueues = async () => {
+  for (const name of Object.keys(queues)) {
+    try {
+      await queues[name].close();
+    } catch (_) {}
+    delete queues[name];
+  }
+};
+
 module.exports = {
   getQueue,
   addJob,
+  getRunnelQueue,
+  closeQueues,
+  RUNNEL_QUEUE,
 };

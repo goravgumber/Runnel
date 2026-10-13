@@ -8,10 +8,17 @@ const notFoundHandler = (req, res, next) => {
 };
 
 const errorHandler = (err, req, res, next) => {
-  const statusCode = err.statusCode || 500;
-  const message = err.message || "An unexpected error occurred";
-  const details = err.details || null;
+  let statusCode = err.statusCode || 500;
+  let message = err.message || "An unexpected error occurred";
+  let details = err.details || null;
   const traceId = req.traceId || undefined;
+
+  // Handle MongoDB duplicate key errors (code 11000)
+  if (err.code === 11000) {
+    statusCode = 409;
+    const field = Object.keys(err.keyValue || {})[0] || "username";
+    message = `${field.charAt(0).toUpperCase() + field.slice(1)} already taken`;
+  }
 
   let errorCode = errorCodes.INTERNAL_ERROR;
   if (statusCode === 400) errorCode = errorCodes.BAD_REQUEST;

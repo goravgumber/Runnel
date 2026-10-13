@@ -1,311 +1,356 @@
-import { useState, useEffect } from "react";
-import { useSimulation } from "../context/SimulationContext";
-import Card from "../components/ui/Card";
-import Button from "../components/ui/Button";
-import Skeleton from "../components/ui/Skeleton";
-import { userAPI } from "../services/api";
+import React, { useState, useEffect } from "react";
+import {
+  User,
+  Key,
+  Sliders,
+  ShieldAlert,
+  Copy,
+  Check,
+  Eye,
+  EyeOff,
+  Terminal,
+  Save,
+  CheckCircle2,
+  AlertTriangle,
+} from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { userAPI, authAPI } from "../services/api";
 
-const speedOptions = [
-  { label: "Slow", value: 1000 },
-  { label: "Normal", value: 500 },
-  { label: "Fast", value: 200 },
-  { label: "Ultra", value: 50 },
-];
+export default function Settings() {
+  const { user, token } = useAuth();
 
-const inputClass =
-  "bg-elevated border border-border rounded text-text-primary font-mono text-sm px-3 py-2 focus:border-accent outline-none ring-1 ring-transparent focus:ring-accent/20 placeholder:text-text-muted w-full";
-
-function Toggle({ active, onChange }) {
-  return (
-    <button
-      type="button"
-      onClick={onChange}
-      className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${
-        active ? "bg-accent" : "bg-elevated border border-border"
-      }`}
-    >
-      <span
-        className={`absolute top-0.5 w-4 h-4 bg-text-primary rounded-full transition-transform ${
-          active ? "translate-x-5" : "translate-x-1"
-        }`}
-      />
-    </button>
-  );
-}
-
-function Settings() {
-  const { settings, updateSettings, setSpeed } = useSimulation();
-
-  const [form, setForm] = useState(settings);
-  const [display, setDisplay] = useState(() => {
-    const saved = localStorage.getItem("simulationDisplay");
-    return saved
-      ? JSON.parse(saved)
-      : { autoRefresh: 10000, showTicks: true, numberFormat: "abbreviated" };
+  // Execution policies state
+  const [policies, setPolicies] = useState({
+    defaultMaxAttempts: 3,
+    defaultExecutionTimeoutMs: 30000,
+    retryBackoffMs: 1000,
   });
-  const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem("simulationNotifications");
-    return saved
-      ? JSON.parse(saved)
-      : { collapseRisk: true, extinctionRisk: true };
-  });
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [showToken, setShowToken] = useState(false);
+  const [copiedToken, setCopiedToken] = useState(false);
+  const [copiedCurl, setCopiedCurl] = useState(false);
+  const [revokingSessions, setRevokingSessions] = useState(false);
+
+  const showNotification = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   useEffect(() => {
-    setForm(settings);
-  }, [settings]);
-
-  useEffect(() => {
-    const loadSettings = async () => {
-      const res = await userAPI.getSettings();
-      if (res.data?.settings) {
-        const s = res.data.settings;
-        setForm((prev) => ({
-          ...prev,
-          plants: s.defaultPlants,
-          herbivores: s.defaultHerbivores,
-          carnivores: s.defaultCarnivores,
-          speed: ({ slow: 1000, normal: 500, fast: 200, ultra: 50 }[s.defaultSpeed]) || 500,
-        }));
-        setDisplay((prev) => ({
-          ...prev,
-          autoRefresh: (s.autoRefreshInterval || 10) * 1000,
-          showTicks: s.showTickNumbers,
-          numberFormat: s.numberFormat === "full" ? "full" : "abbreviated",
-        }));
-        setNotifications((prev) => ({
-          ...prev,
-          collapseRisk: s.alertOnCollapseRisk,
-          extinctionRisk: s.alertOnExtinction,
-        }));
+    const fetchSettings = async () => {
+      try {
+        const res = await userAPI.getSettings();
+        if (res.data?.data?.settings || res.data?.settings) {
+          const s = res.data?.data?.settings || res.data?.settings;
+          setPolicies({
+            defaultMaxAttempts: s.defaultMaxAttempts ?? 3,
+            defaultExecutionTimeoutMs: s.defaultExecutionTimeoutMs ?? 30000,
+            retryBackoffMs: s.retryBackoffMs ?? 1000,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch settings", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
-    loadSettings();
+    fetchSettings();
   }, []);
 
-  const updateDisplay = (patch) => {
-    const next = { ...display, ...patch };
-    setDisplay(next);
-    localStorage.setItem("simulationDisplay", JSON.stringify(next));
+  const handleCopyToken = () => {
+    if (!token) return;
+    navigator.clipboard.writeText(token).then(() => {
+      setCopiedToken(true);
+      setTimeout(() => setCopiedToken(false), 2000);
+    });
   };
 
-  const updateNotifications = (patch) => {
-    const next = { ...notifications, ...patch };
-    setNotifications(next);
-    localStorage.setItem("simulationNotifications", JSON.stringify(next));
+  const curlCommand = `curl -X POST http://localhost:5000/api/v1/executions \\
+  -H "Authorization: Bearer ${token ? (showToken ? token : token.slice(0, 16) + "...") : "YOUR_TOKEN"}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "Sync customer webhook",
+    "type": "echo",
+    "input": {"customerId": "cus_1002"}
+  }'`;
+
+  const handleCopyCurl = () => {
+    const fullCurl = `curl -X POST http://localhost:5000/api/v1/executions \\
+  -H "Authorization: Bearer ${token || "YOUR_TOKEN"}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "Sync customer webhook",
+    "type": "echo",
+    "input": {"customerId": "cus_1002"}
+  }'`;
+    navigator.clipboard.writeText(fullCurl).then(() => {
+      setCopiedCurl(true);
+      setTimeout(() => setCopiedCurl(false), 2000);
+    });
   };
 
-  const handleNumberChange = (e) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: Number(value) }));
-  };
-
-  const handleSave = async (e) => {
+  const handleSavePolicies = async (e) => {
     e.preventDefault();
     setSaving(true);
-    setStatus(null);
-
-    updateSettings(form);
-    localStorage.setItem("simulationDisplay", JSON.stringify(display));
-    localStorage.setItem("simulationNotifications", JSON.stringify(notifications));
-
-    const backendSettings = {
-      defaultPlants: form.plants,
-      defaultHerbivores: form.herbivores,
-      defaultCarnivores: form.carnivores,
-      defaultSpeed: ({ 1000: "slow", 500: "normal", 200: "fast", 50: "ultra" }[form.speed]) || "normal",
-      autoRefreshInterval: Math.round(display.autoRefresh / 1000),
-      showTickNumbers: display.showTicks,
-      numberFormat: display.numberFormat === "full" ? "full" : "abbreviated",
-      alertOnCollapseRisk: notifications.collapseRisk,
-      alertOnExtinction: notifications.extinctionRisk,
-    };
-
-    const res = await userAPI.saveSettings(backendSettings);
-    if (res.data) {
-      setStatus({ type: "success", message: "Settings saved" });
-    } else {
-      setStatus({ type: "error", message: res.error || "Failed to save settings" });
+    try {
+      const payload = {
+        defaultMaxAttempts: Number(policies.defaultMaxAttempts),
+        defaultExecutionTimeoutMs: Number(policies.defaultExecutionTimeoutMs),
+        retryBackoffMs: Number(policies.retryBackoffMs),
+      };
+      const res = await userAPI.saveSettings(payload);
+      if (res.error) {
+        showNotification(res.error, "error");
+      } else {
+        showNotification("Execution operational policies saved successfully!");
+      }
+    } catch {
+      showNotification("Failed to save settings. Connection error.", "error");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
-  if (loading) {
-    return (
-      <div className="max-w-2xl mx-auto space-y-6">
-        <Skeleton height="1.5rem" width="8rem" />
-        <Skeleton variant="block" height={320} />
-        <Skeleton variant="block" height={200} />
-        <Skeleton variant="block" height={160} />
-      </div>
-    );
-  }
+  const handleRevokeAllSessions = async () => {
+    if (!window.confirm("Are you sure you want to revoke all other active sessions?")) return;
+    setRevokingSessions(true);
+    try {
+      const res = await authAPI.logoutAll();
+      if (res.error) {
+        showNotification(res.error, "error");
+      } else {
+        showNotification("All other sessions revoked successfully!");
+      }
+    } catch {
+      showNotification("Failed to revoke sessions.", "error");
+    } finally {
+      setRevokingSessions(false);
+    }
+  };
+
+  const inputCls =
+    "w-full rounded-lg border border-stone-border bg-canvas-subtle px-3 py-2 text-sm text-charcoal font-mono placeholder-charcoal-dim focus:border-forest focus:ring-1 focus:ring-forest/20 focus:outline-none transition-colors";
+  const labelCls = "block text-xs font-mono uppercase tracking-wider text-charcoal-secondary mb-1.5";
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-text-primary text-xl font-semibold font-mono">
-        Settings
-      </h1>
+    <div className="min-h-screen bg-canvas p-6 md:p-8 max-w-4xl mx-auto space-y-6">
+      {/* Page Header */}
+      <div>
+        <h1 className="text-xl font-bold text-charcoal font-sans">Settings &amp; Developer Preferences</h1>
+        <p className="text-sm text-charcoal-secondary mt-1">
+          Manage your Runnel developer account credentials, execution queue policies, and security sessions.
+        </p>
+      </div>
 
-      {status && (
-        <div className={`rounded-lg border px-4 py-3 text-sm ${
-          status.type === "success"
-            ? "border-accent/30 bg-accent/5 text-accent"
-            : "border-danger/30 bg-danger/5 text-danger"
-        }`}>
-          {status.message}
+      {/* Toast Alert */}
+      {toast && (
+        <div
+          className={`p-4 rounded-xl border flex items-center gap-3 text-sm font-medium transition-all ${
+            toast.type === "error"
+              ? "bg-terracotta-ghost border-terracotta-border text-terracotta"
+              : "bg-[rgba(47,125,90,0.08)] border-[#2F7D5A]/30 text-[#2F7D5A]"
+          }`}
+        >
+          {toast.type === "error" ? (
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+          )}
+          <span>{toast.message}</span>
         </div>
       )}
 
-      <form onSubmit={handleSave} className="space-y-6">
-        <Card title="SIMULATION DEFAULTS">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-text-muted text-xs font-mono uppercase tracking-wider mb-1.5">
-                Starting Plants
-              </label>
-              <input
-                type="number"
-                name="plants"
-                value={form.plants}
-                onChange={handleNumberChange}
-                className={inputClass}
-                min="10"
-              />
+      {/* 1. Account Profile */}
+      <div className="bg-surface border border-stone-border rounded-xl p-6 shadow-card space-y-4">
+        <div className="flex items-center gap-3 border-b border-stone-border pb-4">
+          <div className="w-9 h-9 rounded-lg bg-forest-ghost border border-forest-border flex items-center justify-center text-forest">
+            <User className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-charcoal font-sans">Account &amp; Workspace</h2>
+            <p className="text-xs text-charcoal-muted font-mono">Authenticated developer identity</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+          <div className="bg-canvas-subtle border border-stone-border rounded-lg p-3">
+            <span className="text-2xs font-mono uppercase tracking-wider text-charcoal-secondary block mb-1">
+              Username
+            </span>
+            <span className="text-sm font-mono font-bold text-charcoal">{user?.username || "—"}</span>
+          </div>
+          <div className="bg-canvas-subtle border border-stone-border rounded-lg p-3">
+            <span className="text-2xs font-mono uppercase tracking-wider text-charcoal-secondary block mb-1">
+              Role
+            </span>
+            <span className="text-sm font-mono font-bold text-forest capitalize">{user?.role || "developer"}</span>
+          </div>
+          <div className="bg-canvas-subtle border border-stone-border rounded-lg p-3">
+            <span className="text-2xs font-mono uppercase tracking-wider text-charcoal-secondary block mb-1">
+              Session Status
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-xs font-mono text-[#2F7D5A]">
+              <span className="w-2 h-2 rounded-full bg-[#2F7D5A] animate-pulse" />
+              Authenticated (Active)
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Developer API Token & Integration */}
+      <div className="bg-surface border border-stone-border rounded-xl p-6 shadow-card space-y-4">
+        <div className="flex items-center justify-between border-b border-stone-border pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-canvas-well border border-stone-border flex items-center justify-center text-charcoal">
+              <Key className="w-5 h-5 text-forest" />
             </div>
             <div>
-              <label className="block text-text-muted text-xs font-mono uppercase tracking-wider mb-1.5">
-                Starting Herbivores
-              </label>
-              <input
-                type="number"
-                name="herbivores"
-                value={form.herbivores}
-                onChange={handleNumberChange}
-                className={inputClass}
-                min="5"
-              />
-            </div>
-            <div>
-              <label className="block text-text-muted text-xs font-mono uppercase tracking-wider mb-1.5">
-                Starting Carnivores
-              </label>
-              <input
-                type="number"
-                name="carnivores"
-                value={form.carnivores}
-                onChange={handleNumberChange}
-                className={inputClass}
-                min="2"
-              />
-            </div>
-            <div>
-              <label className="block text-text-muted text-xs font-mono uppercase tracking-wider mb-1.5">
-                Speed
-              </label>
-              <div className="flex gap-2">
-                {speedOptions.map((opt) => (
-                  <Button
-                    key={opt.value}
-                    type="button"
-                    variant={form.speed === opt.value ? "primary" : "ghost"}
-                    size="sm"
-                    onClick={() => setForm((prev) => ({ ...prev, speed: opt.value }))}
-                  >
-                    {opt.label}
-                  </Button>
-                ))}
-              </div>
+              <h2 className="text-base font-bold text-charcoal font-sans">Developer API Access</h2>
+              <p className="text-xs text-charcoal-muted font-mono">Programmatic access token for dispatching tasks</p>
             </div>
           </div>
-        </Card>
+        </div>
 
-        <Card title="DISPLAY">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-text-primary text-sm font-mono">
-                Auto-refresh interval
-              </span>
-              <select
-                value={display.autoRefresh}
-                onChange={(e) =>
-                  updateDisplay({ autoRefresh: Number(e.target.value) })
-                }
-                className="bg-elevated border border-border rounded text-text-primary font-mono text-sm px-3 py-2 focus:border-accent outline-none ring-1 ring-transparent focus:ring-accent/20"
-              >
-                <option value={5000}>5s</option>
-                <option value={10000}>10s</option>
-                <option value={30000}>30s</option>
-              </select>
+        <div>
+          <label className={labelCls}>Active Bearer Token</label>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 bg-canvas-subtle border border-stone-border rounded-lg px-3.5 py-2.5 font-mono text-xs text-charcoal truncate">
+              {token ? (showToken ? token : `${token.slice(0, 18)}••••••••••••••••••••••••••••••••••••••••${token.slice(-6)}`) : "No active token"}
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-text-primary text-sm font-mono">
-                Show tick numbers
-              </span>
-              <Toggle
-                active={display.showTicks}
-                onChange={() =>
-                  updateDisplay({ showTicks: !display.showTicks })
-                }
-              />
+            <button
+              onClick={() => setShowToken(!showToken)}
+              className="p-2.5 rounded-lg border border-stone-border bg-surface hover:bg-canvas-well text-charcoal-secondary transition-colors cursor-pointer"
+              title={showToken ? "Hide token" : "Show token"}
+            >
+              {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={handleCopyToken}
+              className="p-2.5 rounded-lg border border-stone-border bg-surface hover:bg-canvas-well text-charcoal transition-colors flex items-center gap-1.5 cursor-pointer"
+              title="Copy token to clipboard"
+            >
+              {copiedToken ? <Check className="w-4 h-4 text-[#2F7D5A]" /> : <Copy className="w-4 h-4" />}
+              <span className="text-xs font-mono hidden sm:inline">{copiedToken ? "Copied" : "Copy"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Quickstart API snippet */}
+        <div className="pt-2">
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-xs font-mono uppercase tracking-wider text-charcoal-secondary flex items-center gap-1.5">
+              <Terminal className="w-3.5 h-3.5 text-forest" /> Quickstart cURL Example
+            </label>
+            <button
+              onClick={handleCopyCurl}
+              className="text-2xs font-mono text-charcoal-secondary hover:text-charcoal flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              {copiedCurl ? <Check className="w-3 h-3 text-[#2F7D5A]" /> : <Copy className="w-3 h-3" />}
+              <span>{copiedCurl ? "Copied" : "Copy snippet"}</span>
+            </button>
+          </div>
+          <pre className="bg-canvas-subtle border border-stone-border rounded-lg p-3 text-xs font-mono text-charcoal leading-relaxed overflow-x-auto">
+            {curlCommand}
+          </pre>
+        </div>
+      </div>
+
+      {/* 3. Execution Queue Operational Policies */}
+      <form onSubmit={handleSavePolicies} className="bg-surface border border-stone-border rounded-xl p-6 shadow-card space-y-4">
+        <div className="flex items-center justify-between border-b border-stone-border pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-forest-ghost border border-forest-border flex items-center justify-center text-forest">
+              <Sliders className="w-5 h-5" />
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-text-primary text-sm font-mono">
-                Number format
-              </span>
-              <Toggle
-                active={display.numberFormat === "compact"}
-                onChange={() =>
-                  updateDisplay({
-                    numberFormat:
-                      display.numberFormat === "compact" ? "full" : "compact",
-                  })
-                }
-              />
+            <div>
+              <h2 className="text-base font-bold text-charcoal font-sans">Queue Execution Policies</h2>
+              <p className="text-xs text-charcoal-muted font-mono">Default runtime thresholds for submitted work</p>
             </div>
           </div>
-        </Card>
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-lg bg-forest hover:bg-forest-hover px-4 py-2 text-xs font-semibold text-white transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+          >
+            <Save className="w-4 h-4" />
+            <span>{saving ? "Saving..." : "Save Policies"}</span>
+          </button>
+        </div>
 
-        <Card title="NOTIFICATIONS">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-text-primary text-sm font-mono">
-                Collapse risk &gt;70%
-              </span>
-              <Toggle
-                active={notifications.collapseRisk}
-                onChange={() =>
-                  updateNotifications({
-                    collapseRisk: !notifications.collapseRisk,
-                  })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-text-primary text-sm font-mono">
-                Extinction risk
-              </span>
-              <Toggle
-                active={notifications.extinctionRisk}
-                onChange={() =>
-                  updateNotifications({
-                    extinctionRisk: !notifications.extinctionRisk,
-                  })
-                }
-              />
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+          <div>
+            <label className={labelCls}>Default Max Attempts</label>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              className={inputCls}
+              value={policies.defaultMaxAttempts}
+              onChange={(e) => setPolicies({ ...policies, defaultMaxAttempts: Number(e.target.value) })}
+            />
+            <span className="text-2xs text-charcoal-muted font-mono mt-1 block">Bounded retries before terminal failure</span>
           </div>
-        </Card>
 
-        <Button variant="primary" size="lg" className="w-full justify-center" loading={saving}>
-          {saving ? "Saving..." : "Save Settings"}
-        </Button>
+          <div>
+            <label className={labelCls}>Timeout (ms)</label>
+            <input
+              type="number"
+              min={1000}
+              step={1000}
+              className={inputCls}
+              value={policies.defaultExecutionTimeoutMs}
+              onChange={(e) => setPolicies({ ...policies, defaultExecutionTimeoutMs: Number(e.target.value) })}
+            />
+            <span className="text-2xs text-charcoal-muted font-mono mt-1 block">Maximum job execution duration</span>
+          </div>
+
+          <div>
+            <label className={labelCls}>Retry Backoff (ms)</label>
+            <input
+              type="number"
+              min={100}
+              step={100}
+              className={inputCls}
+              value={policies.retryBackoffMs}
+              onChange={(e) => setPolicies({ ...policies, retryBackoffMs: Number(e.target.value) })}
+            />
+            <span className="text-2xs text-charcoal-muted font-mono mt-1 block">Base backoff before next attempt</span>
+          </div>
+        </div>
       </form>
+
+      {/* 4. Security & Active Sessions */}
+      <div className="bg-surface border border-stone-border rounded-xl p-6 shadow-card space-y-4">
+        <div className="flex items-center gap-3 border-b border-stone-border pb-4">
+          <div className="w-9 h-9 rounded-lg bg-terracotta-ghost border border-terracotta-border flex items-center justify-center text-terracotta">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-charcoal font-sans">Security &amp; Active Sessions</h2>
+            <p className="text-xs text-charcoal-muted font-mono">Control your refresh tokens and active client connections</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+          <div>
+            <p className="text-sm font-semibold text-charcoal">Revoke All Concurrent Sessions</p>
+            <p className="text-xs text-charcoal-secondary font-mono mt-0.5">
+              Invalidates all issued refresh tokens for this user account across all devices.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleRevokeAllSessions}
+            disabled={revokingSessions}
+            className="px-4 py-2 rounded-lg border border-terracotta-border bg-terracotta-ghost hover:bg-terracotta-ghost/80 text-terracotta text-xs font-mono font-bold transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+          >
+            {revokingSessions ? "Revoking..." : "Revoke All Other Sessions"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
-
-export default Settings;

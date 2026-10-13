@@ -25,6 +25,9 @@ const userSchema = new mongoose.Schema(
       alertOnExtinction:    { type: Boolean, default: true },
       showTickNumbers:      { type: Boolean, default: true },
       numberFormat:         { type: String, default: "abbreviated", enum: ["abbreviated","full"] },
+      defaultMaxAttempts:   { type: Number, default: 3 },
+      defaultExecutionTimeoutMs: { type: Number, default: 30000 },
+      retryBackoffMs:       { type: Number, default: 1000 },
     },
   },
   { timestamps: true }

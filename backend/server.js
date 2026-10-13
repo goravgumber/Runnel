@@ -22,6 +22,8 @@ const { notFoundHandler, errorHandler } = require("./middleware/errorHandler");
 const { startWorkers, stopWorkers } = require("./workers");
 const { addJob } = require("./queues");
 const { tickQueue, createTickWorker, getQueueStats } = require("./queues/simulationQueue");
+const { startExecutionWorker } = require("./workers/executionWorker");
+const { getRunnelQueue } = require("./queues");
 const requireRole = require("./middleware/requireRole");
 
 const authRoutes = require("./routes/auth");
@@ -39,6 +41,7 @@ const queuesRoutes = require("./routes/queues");
 const adminRoutes = require("./routes/admin");
 const usersRoutes = require("./routes/users");
 const healthRoutes = require("./routes/health");
+const executionsRoutes = require("./routes/executions");
 const swaggerSpec = require("./docs/swaggerSpec");
 
 const app = express();
@@ -137,6 +140,7 @@ const configureRoutes = () => {
   apiRouter.use("/admin", adminRoutes);
   apiRouter.use("/simulation-history", historyRoutes);
   apiRouter.use("/users", usersRoutes);
+  apiRouter.use("/executions", executionsRoutes);
 
   // Queue stats endpoint
   apiRouter.get("/queue/stats", async (req, res) => {
@@ -158,7 +162,10 @@ const configureRoutes = () => {
   const serverAdapter = new ExpressAdapter();
   serverAdapter.setBasePath("/admin/queues");
   createBullBoard({
-    queues: [new BullMQAdapter(tickQueue)],
+    queues: [
+      new BullMQAdapter(tickQueue),
+      new BullMQAdapter(getRunnelQueue()),
+    ],
     serverAdapter,
   });
   app.use("/admin/queues", requireRole("admin"), serverAdapter.getRouter());
@@ -177,15 +184,53 @@ const configureRoutes = () => {
   app.use(errorHandler);
 };
 
+const ensureUserIndexes = async () => {
+  try {
+    const collection = mongoose.connection.collection("users");
+    const indexes = await collection.indexes();
+    const hasObsoleteEmailIndex = indexes.some((idx) => idx.name === "email_1");
+    if (hasObsoleteEmailIndex) {
+      await collection.dropIndex("email_1");
+      logger.info("Dropped obsolete email_1 unique index from users collection");
+    }
+    const hasUsernameIndex = indexes.some((idx) => idx.name === "username_1");
+    if (!hasUsernameIndex) {
+      await collection.createIndex({ username: 1 }, { unique: true, background: true });
+      logger.info("Created username_1 unique index on users collection");
+    }
+  } catch (err) {
+    logger.warn("User index verification warning: %s", err.message);
+  }
+};
+
 const startServer = async () => {
   try {
-    await mongoose.connect(config.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
-    logger.info("MongoDB connected");
+    try {
+      await mongoose.connect(config.MONGO_URI, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+        serverSelectionTimeoutMS: 2000,
+      });
+      logger.info("MongoDB connected successfully");
+    } catch (dbErr) {
+      if (process.env.NODE_ENV !== "production") {
+        logger.warn(`Could not connect to external MongoDB at ${config.MONGO_URI}: ${dbErr.message}. Starting embedded MongoMemoryServer for development...`);
+        const { MongoMemoryServer } = require("mongodb-memory-server");
+        const mongod = await MongoMemoryServer.create();
+        const memUri = mongod.getUri();
+        await mongoose.connect(memUri);
+        logger.info(`Connected to embedded development MongoDB at ${memUri}`);
+      } else {
+        throw dbErr;
+      }
+    }
+    await ensureUserIndexes();
     await initializeAIService();
 
     // Start BullMQ workers
     startWorkers(io);
     createTickWorker(io);
+    startExecutionWorker(io);
 
     startBackgroundMonitoring();
     configureRoutes();
@@ -194,6 +239,7 @@ const startServer = async () => {
       logger.info("Socket connected", { socketId: socket.id, userId: socket.user?.id });
       if (socket.user?.id) {
         socket.join(socket.user.id);
+        socket.join(`user-${socket.user.id}`);
       }
       socket.emit("connection-success", { socketId: socket.id, userId: socket.user?.id });
 

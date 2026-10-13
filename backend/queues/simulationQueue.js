@@ -6,11 +6,21 @@ const Alert = require("../models/Alert");
 const logger = require("../config/logger");
 const redisClient = require("../config/redis");
 
-const connection = redisClient
-  ? { connection: redisClient }
-  : { connection: { host: "127.0.0.1", port: 6379 } };
+const isTestWithoutRedis = process.env.NODE_ENV === "test" && !process.env.TEST_WITH_REDIS;
 
-const tickQueue = new Queue("simulation-tick", connection);
+const connection = isTestWithoutRedis
+  ? null
+  : redisClient && redisClient.status !== "end"
+    ? { connection: redisClient }
+    : null;
+
+const tickQueue = connection
+  ? new Queue("simulation-tick", connection)
+  : {
+      add: async () => ({ id: "mock-tick-job" }),
+      getJobCounts: async () => ({ active: 0, completed: 0, failed: 0 }),
+      close: async () => {},
+    };
 
 let simRunning = false;
 let simSpeed = 1000;

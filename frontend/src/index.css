@@ -11,80 +11,80 @@ html {
 }
 
 body {
-  background-color: #070711;
-  color: #F0F2FF;
+  background-color: #FBF9F3;
+  color: #171717;
   font-family: Inter, -apple-system, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
 }
 
-/* CRITICAL — fixes white input boxes in ALL browsers */
+/* Ensure clean inputs across all browsers */
 input, select, textarea {
-  background-color: #181828 !important;
-  color: #F0F2FF !important;
-  border-color: #1E2040;
-  -webkit-text-fill-color: #F0F2FF !important;
+  background-color: #FFFFFF;
+  color: #171717;
+  border-color: #DCDCD5;
+  -webkit-text-fill-color: #171717;
 }
 
 input::placeholder, textarea::placeholder {
-  color: #4A4F7A !important;
-  -webkit-text-fill-color: #4A4F7A !important;
+  color: #85857E;
+  -webkit-text-fill-color: #85857E;
   opacity: 1;
 }
 
-/* Fix browser autofill white background */
+/* Fix browser autofill */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 100px #181828 inset !important;
-  -webkit-text-fill-color: #F0F2FF !important;
-  background-color: #181828 !important;
-  caret-color: #F0F2FF;
+  -webkit-box-shadow: 0 0 0 100px #FFFFFF inset !important;
+  -webkit-text-fill-color: #171717 !important;
+  background-color: #FFFFFF !important;
+  caret-color: #171717;
 }
 
 select option {
-  background-color: #181828;
-  color: #F0F2FF;
-}
-
-input[type="search"], input[type="text"] {
-  background-color: #181828 !important;
-  color: #F0F2FF !important;
+  background-color: #FFFFFF;
+  color: #171717;
 }
 
 ::-webkit-scrollbar { 
-  width: 4px; 
-  height: 4px; 
+  width: 6px; 
+  height: 6px; 
 }
 
 ::-webkit-scrollbar-track { 
-  background: transparent; 
+  background: #F7F7F4; 
 }
 
 ::-webkit-scrollbar-thumb { 
-  background: #2A2D52; 
+  background: #DCDCD5; 
   border-radius: 4px; 
 }
 
 ::-webkit-scrollbar-thumb:hover { 
-  background: #00C8E8; 
+  background: #C8C8C0; 
 }
 
 ::selection { 
-  background: rgba(0,200,232,0.2); 
-  color: #F0F2FF; 
+  background: rgba(27, 67, 50, 0.15); 
+  color: #171717; 
 }
 
-/* Remove default focus outlines — we use custom ones */
+/* Accessible focus ring */
 *:focus { 
   outline: none; 
 }
 
 *:focus-visible {
-  outline: 1.5px solid #00C8E8;
+  outline: 2px solid #1B4332;
   outline-offset: 2px;
+}
+
+/* Tabular numerals for jitter-free telemetry & metrics */
+.tabular-nums {
+  font-feature-settings: "tnum" on;
 }
 
 /* Shared input class */
@@ -94,22 +94,22 @@ input[type="search"], input[type="text"] {
   padding: 0 12px;
   font-size: 13px;
   font-family: Inter, sans-serif;
-  background-color: #181828 !important;
-  color: #F0F2FF !important;
-  border: 1px solid #1E2040;
-  border-radius: 6px;
-  transition: border-color 0.1s;
+  background-color: #FFFFFF;
+  color: #171717;
+  border: 1px solid #DCDCD5;
+  border-radius: 8px;
+  transition: border-color 0.15s, box-shadow 0.15s;
   appearance: none;
   -webkit-appearance: none;
 }
 
 .field:focus {
-  border-color: #00C8E8;
-  box-shadow: 0 0 0 3px rgba(0,200,232,0.1);
+  border-color: #1B4332;
+  box-shadow: 0 0 0 2px rgba(27, 67, 50, 0.15);
 }
 
 .field::placeholder {
-  color: #4A4F7A !important;
+  color: #85857E;
 }
 
 .field-mono {

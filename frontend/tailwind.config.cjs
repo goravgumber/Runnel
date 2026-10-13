@@ -4,56 +4,131 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Base backgrounds — dark navy-charcoal
-        "void":    "#070711",    // deepest background — body
-        "base":    "#0C0C18",    // main content
-        "panel":   "#11111F",    // cards and panels
-        "raised":  "#181828",    // inputs, hover states
-        "overlay": "#1F1F35",    // dropdowns, tooltips
+        // Runnel Canonical Palette
+        // 1. Warm ivory canvas & substrate
+        canvas: {
+          DEFAULT: "#FBF9F3",
+          subtle: "#F7F7F4",
+          well: "#F0EEE7",
+          high: "#EAE8E2",
+          highest: "#E4E2DC",
+        },
+        // 2. Structural crisp surfaces
+        surface: {
+          DEFAULT: "#FFFFFF",
+          hover: "#FAFAF8",
+          active: "#F5F4ED",
+          dim: "#DCDAD4",
+        },
+        // 3. Borders & dividers
+        stone: {
+          border: "#DCDCD5",
+          strong: "#C8C8C0",
+        },
+        // 4. Primary Forest Green
+        forest: {
+          DEFAULT: "#1B4332",
+          hover: "#143527",
+          light: "#2D6A4F",
+          ghost: "rgba(27, 67, 50, 0.08)",
+          border: "rgba(27, 67, 50, 0.25)",
+        },
+        // 5. Restrained Terracotta (Critical / Destructive)
+        terracotta: {
+          DEFAULT: "#B63B32",
+          hover: "#963522",
+          ghost: "rgba(182, 59, 50, 0.08)",
+          border: "rgba(182, 59, 50, 0.25)",
+        },
+        // 6. Typography (Charcoal & Muted Stone)
+        charcoal: {
+          DEFAULT: "#171717",
+          secondary: "#62625D",
+          muted: "#85857E",
+          dim: "#A8A8A0",
+        },
+
+        // Semantic mappings (backward compatible & primary design system tokens)
+        void: "#FBF9F3",
+        base: "#FBF9F3",
+        panel: "#FFFFFF",
+        raised: "#F7F7F4",
+        overlay: "#FFFFFF",
+        elevated: "#F5F4ED",
 
         // Borders
-        "edge":       "#1E2040",  // default borders
-        "edge-mid":   "#2A2D52",  // slightly visible
-        "edge-bright":"#373A6A",  // focused, active
+        edge: "#DCDCD5",
+        "edge-mid": "#C8C8C0",
+        "edge-bright": "#A8A8A0",
+        border: "#DCDCD5",
+        "border-default": "#DCDCD5",
+        "border-bright": "#C8C8C0",
 
-        // Text — high contrast
-        "hi":   "#F0F2FF",       // primary text — near white with blue tint
-        "mid":  "#8B90C4",       // secondary text
-        "lo":   "#4A4F7A",       // muted labels, placeholders
-        "dim":  "#2C3060",       // very muted — disabled states
+        // Text
+        hi: "#171717",
+        mid: "#62625D",
+        lo: "#85857E",
+        dim: "#A8A8A0",
+        "text-primary": "#171717",
+        "text-secondary": "#62625D",
+        "text-muted": "#85857E",
 
-        // Accent — electric cyan
-        "cyan":      "#00C8E8",   // primary interactive
-        "cyan-soft": "#0099B8",   // hover
-        "cyan-dim":  "#00263A",   // subtle cyan backgrounds
-        "cyan-glow": "rgba(0,200,232,0.1)",
+        // Primary interactive accent: Forest Green
+        accent: "#1B4332",
+        "accent-dim": "#143527",
+        "accent-muted": "rgba(27, 67, 50, 0.08)",
+        cyan: "#1B4332",
+        "cyan-soft": "#2D6A4F",
+        "cyan-dim": "rgba(27, 67, 50, 0.08)",
 
-        // Species — these are the ONLY colors that identify species, use consistently
-        "plant": "#10D98C",      // emerald green — only for plants
-        "herb":  "#818CF8",      // indigo — only for herbivores
-        "carn":  "#F87171",      // coral red — only for carnivores
+        // Status tokens
+        ok: "#2F7D5A",
+        "ok-bg": "rgba(47, 125, 90, 0.08)",
+        "ok-edge": "rgba(47, 125, 90, 0.25)",
 
-        // Status
-        "ok":      "#10D98C",
-        "warn":    "#F59E0B",
-        "danger":  "#EF4444",
-        "info":    "#00C8E8",
+        warn: "#B7791F",
+        "warn-bg": "rgba(183, 121, 31, 0.08)",
+        "warn-edge": "rgba(183, 121, 31, 0.25)",
 
-        // Status surfaces
-        "ok-bg":     "#071A12",
-        "warn-bg":   "#1A1200",
-        "danger-bg": "#1A0808",
-        "info-bg":   "#001A22",
+        danger: "#B63B32",
+        "danger-bg": "rgba(182, 59, 50, 0.08)",
+        "danger-edge": "rgba(182, 59, 50, 0.25)",
 
-        // Status borders
-        "ok-edge":     "#0D4A2A",
-        "warn-edge":   "#4A3000",
-        "danger-edge": "#4A1010",
-        "info-edge":   "#00405A",
+        info: "#3B5D80",
+        "info-bg": "rgba(59, 93, 128, 0.08)",
+        "info-edge": "rgba(59, 93, 128, 0.25)",
+
+        // Layout aliases
+        "ink-primary": "#171717",
+        "ink-secondary": "#62625D",
+        "ink-muted": "#85857E",
+        "bg-void": "#FBF9F3",
+        "bg-base": "#F7F7F4",
+        "bg-panel": "#FFFFFF",
+        "bg-raised": "#F5F4ED",
+        "bg-overlay": "#FFFFFF",
+        "line-subtle": "#DCDCD5",
+        "line-bright": "#C8C8C0",
+        "status-danger": "#B63B32",
+        "status-warning": "#B7791F",
+        "status-info": "#3B5D80",
+        "status-success": "#2F7D5A",
+        "green-vivid": "#1B4332",
+        "green-ghost": "rgba(27, 67, 50, 0.08)",
+
+        // Legacy simulator simulation tags (kept safe for non-destructive backwards compatibility)
+        plant: "#2F7D5A",
+        herb: "#3B5D80",
+        carn: "#B63B32",
       },
       fontFamily: {
         sans: ["Inter", "-apple-system", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "Fira Code", "monospace"],
+      },
+      boxShadow: {
+        card: "0 1px 3px rgba(23, 23, 23, 0.04), 0 0 0 1px #DCDCD5",
+        elevated: "0 4px 12px rgba(23, 23, 23, 0.06), 0 0 0 1px #DCDCD5",
+        modal: "0 8px 30px rgba(23, 23, 23, 0.12), 0 0 0 1px #C8C8C0",
       },
       fontSize: {
         "2xs": ["10px", { lineHeight: "14px", letterSpacing: "0.06em" }],

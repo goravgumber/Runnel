@@ -1,427 +1,529 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import {
+  Inbox,
+  Play,
+  RotateCcw,
+  Ban,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Terminal,
+  Activity,
+  ArrowRight,
+  ShieldAlert,
+  Zap,
+} from "lucide-react";
 import { io } from "socket.io-client";
+import { useAuth } from "../context/AuthContext";
+import { executionsAPI } from "../services/executionsAPI";
+import StatCard from "../components/ui/StatCard";
+import StatusBadge from "../components/ui/StatusBadge";
 import Button from "../components/ui/Button";
-import Badge from "../components/ui/Badge";
-import Card from "../components/ui/Card";
-import LineChart from "../components/ui/LineChart";
-import Skeleton from "../components/ui/Skeleton";
-import { simAPI, mlAPI } from "../services/api";
-import { formatPop } from "../utils/format";
+import EmptyState from "../components/ui/EmptyState";
 
-const BACKEND_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
-
-const COLORS = {
-  plants: "#4ADE80",
-  herbivores: "#60A5FA",
-  carnivores: "#F87171",
-};
-
-const SPEEDS = [1, 2, 5, 10];
-
-function CollapseGauge({ risk }) {
-  const pct = Math.min(100, Math.max(0, Math.round(risk * 100)));
-  const strokeColor = pct < 30 ? "#4ADE80" : pct < 70 ? "#F59E0B" : "#EF4444";
-  const isCritical = pct > 70;
-  const r = 60;
-  const circumference = 2 * Math.PI * r;
-  const offset = circumference - (pct / 100) * circumference;
-
-  let interpretation = "Ecosystem is stable \u2014 low risk of collapse";
-  if (pct >= 70) interpretation = "Critical \u2014 intervention may be needed";
-  else if (pct >= 30) interpretation = "Warning signs detected \u2014 monitor closely";
-
-  return (
-    <div className="flex items-center gap-6 py-2">
-      <div className="flex flex-col items-center shrink-0">
-        <svg width="140" height="140" viewBox="0 0 160 160" className={isCritical ? "animate-pulse" : ""}>
-          <circle cx="80" cy="80" r={r} fill="none" stroke="#1C2E1C" strokeWidth="8" />
-          <circle cx="80" cy="80" r={r} fill="none" stroke={strokeColor} strokeWidth="8"
-            strokeDasharray={circumference} strokeDashoffset={offset}
-            strokeLinecap="round" transform="rotate(-90 80 80)"
-            style={{ transition: "stroke-dashoffset 0.6s ease", filter: isCritical ? "drop-shadow(0 0 8px #EF4444)" : "none" }} />
-          <text x="80" y="75" textAnchor="middle" fill="#E8F5E8" fontSize="24" fontFamily="JetBrains Mono" fontWeight="600">
-            {pct}%
-          </text>
-          <text x="80" y="100" textAnchor="middle" fill="#4D7A4D" fontSize="9" fontFamily="JetBrains Mono">
-            COLLAPSE RISK
-          </text>
-        </svg>
-      </div>
-      <p className="text-text-secondary text-sm leading-relaxed">{interpretation}</p>
-    </div>
-  );
-}
-
-function ForecastCard({ forecast }) {
-  if (!forecast || !forecast.predictions || forecast.predictions.length === 0) {
-    return (
-      <div className="text-text-muted text-xs font-mono text-center py-4">
-        Awaiting data for forecast...
-      </div>
-    );
-  }
-
-  const steps = forecast.predictions.slice(0, 5);
-  const modelLabel = forecast.model_version || "v?";
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-text-muted font-mono text-xs tracking-widest">POPULATION FORECAST</p>
-        <Badge variant="neutral">{modelLabel}</Badge>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono">
-          <thead>
-            <tr className="text-text-muted border-b border-border">
-              <th className="text-left py-1 pr-2">Step</th>
-              <th className="text-right px-1 text-plants">P</th>
-              <th className="text-right px-1 text-herbivores">H</th>
-              <th className="text-right px-1 text-carnivores">C</th>
-            </tr>
-          </thead>
-          <tbody>
-            {steps.map((pred, i) => (
-              <tr key={i} className="border-b border-border/40">
-                <td className="py-1 pr-2 text-text-muted">+{i + 1}</td>
-                <td className="text-right px-1 text-plants">{formatPop(pred[0])}</td>
-                <td className="text-right px-1 text-herbivores">{formatPop(pred[1])}</td>
-                <td className="text-right px-1 text-carnivores">{formatPop(pred[2])}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-text-muted text-[10px] font-mono mt-2">
-        Generated {new Date(forecast.generated_at).toLocaleTimeString()}
-      </p>
-    </div>
-  );
-}
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
 
 export default function Dashboard() {
-  const [state, setState] = useState({ plants: 1000, herbivores: 200, carnivores: 50, tick: 0 });
-  const [prevState, setPrevState] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isRunning, setIsRunning] = useState(false);
-  const [speed, setSpeed] = useState(1);
-  const [insight, setInsight] = useState(null);
-  const [insightLoading, setInsightLoading] = useState(false);
-  const [insightTime, setInsightTime] = useState(null);
-  const [collapseRisk, setCollapseRisk] = useState(0);
-  const [initialPlants, setInitialPlants] = useState(1000);
-  const [initialHerbivores, setInitialHerbivores] = useState(200);
-  const [initialCarnivores, setInitialCarnivores] = useState(50);
-  const [forecast, setForecast] = useState(null);
+  const navigate = useNavigate();
+  const { user, token } = useAuth();
+
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    running: 0,
+    completed: 0,
+    failed: 0,
+    retrying: 0,
+    cancelled: 0,
+  });
+  const [recentExecutions, setRecentExecutions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all");
+  const [lastEvent, setLastEvent] = useState(null);
+  const [actionLoading, setActionLoading] = useState(null);
+  const [quickSubmitting, setQuickSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   const socketRef = useRef(null);
-  const tickCountRef = useRef(0);
-  const lastCollapseFetch = useRef(0);
-  const lastForecastFetch = useRef(0);
+
+  // Load dashboard data
+  const loadDashboardData = useCallback(async () => {
+    try {
+      const [statsRes, listRes] = await Promise.all([
+        executionsAPI.stats(),
+        executionsAPI.list({ limit: 10, page: 1 }),
+      ]);
+
+      if (statsRes.data) setStats(statsRes.data);
+      if (listRes.data) setRecentExecutions(listRes.data.executions || []);
+    } catch (err) {
+      setErrorMsg("Failed to synchronize dashboard metrics.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const socket = io(BACKEND_URL, {
-      transports: ["websocket"],
-      auth: { token: localStorage.getItem("token") },
+    loadDashboardData();
+  }, [loadDashboardData]);
+
+  // Socket.IO for real-time updates
+  useEffect(() => {
+    if (!token) return;
+    const socket = io(SOCKET_URL, {
+      auth: { token },
+      transports: ["websocket", "polling"],
     });
     socketRef.current = socket;
 
-    socket.on("connect", () => setIsConnected(true));
-    socket.on("disconnect", () => setIsConnected(false));
-    socket.on("tick:update", (data) => {
-      const norm = {
-        plants: data.plants,
-        herbivores: data.herbivores,
-        carnivores: data.carnivores,
-        tick: data.tick ?? data.step ?? 0,
-      };
-      setPrevState((p) => p || norm);
-      setState(norm);
-      setHistory((h) => [...h.slice(-199), {
-        step: norm.tick,
-        plants: data.plants,
-        herbivores: data.herbivores,
-        carnivores: data.carnivores,
-      }]);
-      tickCountRef.current += 1;
+    socket.on("execution:update", (evt) => {
+      setLastEvent({ ...evt, timestamp: new Date().toLocaleTimeString() });
+      loadDashboardData();
     });
-    socket.on("simulation-toggle", (data) => setIsRunning(data.isRunning));
-    socket.on("simulation-speed", (data) => setSpeed(data.speed));
 
-    return () => { socket.disconnect(); };
-  }, []);
+    return () => socket.disconnect();
+  }, [token, loadDashboardData]);
 
-  // Live collapse risk — every tick, throttled to 2s
-  useEffect(() => {
-    const now = Date.now();
-    if (tickCountRef.current > 0 && history.length >= 5 && now - lastCollapseFetch.current > 2000) {
-      lastCollapseFetch.current = now;
-      mlAPI.collapse({
-        plants: state.plants,
-        herbivores: state.herbivores,
-        carnivores: state.carnivores,
-        tick: state.tick,
-        history: history.slice(-5),
-      }).then((res) => {
-        if (res.data) setCollapseRisk(res.data.risk_score ?? 0);
-      }).catch(() => {});
-    }
-  }, [state.plants, state.herbivores, state.carnivores, state.tick, history]);
-
-  // Forecast — every 15 ticks, throttled to 10s
-  useEffect(() => {
-    const now = Date.now();
-    if (tickCountRef.current > 0 && tickCountRef.current % 15 === 0 && history.length >= 20 && now - lastForecastFetch.current > 10000) {
-      lastForecastFetch.current = now;
-      mlAPI.forecast({
-        plants: state.plants,
-        herbivores: state.herbivores,
-        carnivores: state.carnivores,
-        tick: state.tick,
-        history: history.slice(-20),
-      }).then((res) => {
-        if (res.data) setForecast(res.data);
-      }).catch(() => {});
-    }
-  }, [state.plants, state.herbivores, state.carnivores, state.tick, history]);
-
-  const fetchInsight = useCallback(async () => {
-    setInsightLoading(true);
+  // Quick submission of presets
+  const handleQuickSubmit = async (type = "echo") => {
+    setQuickSubmitting(true);
     try {
-      const res = await mlAPI.insights({
-        plants: state.plants,
-        herbivores: state.herbivores,
-        carnivores: state.carnivores,
-        tick: state.tick,
-      });
-      if (res.data) {
-        setInsight(res.data);
-        setInsightTime(Date.now());
-      }
-    } catch (_e) {
-      // insight fetch failed — will retry on next interval
+      const payload = {
+        name: type === "fail" ? "Sample Failure Task" : "Quick Telemetry Check",
+        type,
+        description: `Automated test execution dispatched from Overview Dashboard.`,
+        input: {
+          timestamp: new Date().toISOString(),
+          dispatchedBy: user?.username || "developer",
+          environment: "production-preview",
+        },
+        maxAttempts: 3,
+      };
+      await executionsAPI.submit(payload);
+      await loadDashboardData();
+    } catch (err) {
+      setErrorMsg(err.message || "Failed to submit execution");
+    } finally {
+      setQuickSubmitting(false);
     }
-    setInsightLoading(false);
-  }, [state.plants, state.herbivores, state.carnivores, state.tick]);
-
-  const fetchInsightRef = useRef(fetchInsight);
-  fetchInsightRef.current = fetchInsight;
-
-  useEffect(() => {
-    fetchInsightRef.current();
-    const interval = setInterval(() => fetchInsightRef.current(), 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleStart = () => {
-    setIsRunning(true);
-    simAPI.toggle().catch(() => {});
   };
 
-  const handleStop = () => {
-    setIsRunning(false);
-    simAPI.toggle().catch(() => {});
+  const handleRetry = async (id, e) => {
+    e.stopPropagation();
+    setActionLoading(id);
+    try {
+      await executionsAPI.retry(id);
+      await loadDashboardData();
+    } catch (err) {
+      setErrorMsg(err.message || "Failed to retry execution");
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleReset = () => {
-    setHistory([]);
-    setPrevState(null);
-    setCollapseRisk(0);
-    setForecast(null);
-    tickCountRef.current = 0;
-    lastCollapseFetch.current = 0;
-    lastForecastFetch.current = 0;
-    const initState = {
-      plants: initialPlants,
-      herbivores: initialHerbivores,
-      carnivores: initialCarnivores,
-      tick: 0,
-    };
-    setState(initState);
-    simAPI.reset().catch(() => {});
+  const handleCancel = async (id, e) => {
+    e.stopPropagation();
+    setActionLoading(id);
+    try {
+      await executionsAPI.cancel(id);
+      await loadDashboardData();
+    } catch (err) {
+      setErrorMsg(err.message || "Failed to cancel execution");
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleSpeed = (s) => {
-    setSpeed(s);
-    simAPI.speed(s).catch(() => {});
-  };
+  // Derived metrics
+  const activeCount = (stats.running || 0) + (stats.pending || 0);
+  const recoveryCount = (stats.failed || 0) + (stats.retrying || 0);
+  const successRate =
+    stats.total > 0
+      ? Math.round(((stats.completed || 0) / stats.total) * 100)
+      : 100;
 
-  const deltas = prevState ? {
-    plants: state.plants - prevState.plants,
-    herbivores: state.herbivores - prevState.herbivores,
-    carnivores: state.carnivores - prevState.carnivores,
-  } : { plants: 0, herbivores: 0, carnivores: 0 };
-
-  const secondsAgo = insightTime ? Math.floor((Date.now() - insightTime) / 1000) : null;
+  const filteredExecutions = recentExecutions.filter((item) => {
+    if (filter === "recovery") return item.status === "failed" || item.status === "retrying";
+    if (filter === "active") return item.status === "running" || item.status === "pending";
+    if (filter === "completed") return item.status === "completed";
+    return true;
+  });
 
   return (
-    <div className="grid gap-4 min-h-screen bg-base p-4 animate-fade-in" style={{ gridTemplateColumns: "260px 1fr 280px" }}>
-      {/* LEFT COLUMN — Controls */}
-      <div className="space-y-4">
-        <Card>
-          <p className="text-text-muted font-mono text-xs tracking-widest mb-4">SIMULATION</p>
-
-          {isRunning ? (
-            <Button variant="primary" className="w-full" disabled>
-              <span className="relative flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                Running...
-              </span>
-            </Button>
-          ) : (
-            <Button variant="primary" className="w-full" onClick={handleStart}>Start</Button>
-          )}
-
-          <Button variant="ghost" className="w-full mt-2" onClick={handleStop}>Stop</Button>
-          <Button variant="danger" className="w-full mt-2" onClick={handleReset}>Reset</Button>
-
-          <div className="border-t border-border my-3" />
-
-          <p className="text-text-muted font-mono text-xs tracking-widest mb-2">SPEED</p>
-          <div className="grid grid-cols-4 gap-1">
-            {SPEEDS.map((s) => (
-              <button key={s}
-                onClick={() => handleSpeed(s)}
-                className={`px-2 py-1.5 text-xs font-mono rounded transition-colors ${
-                  speed === s
-                    ? "bg-accent-muted text-accent border border-accent/30"
-                    : "bg-elevated text-text-secondary border border-border"
-                }`}
-              >
-                {s}x
-              </button>
-            ))}
-          </div>
-
-          <div className="border-t border-border my-3" />
-
-          <p className="text-text-muted font-mono text-xs tracking-widest mb-3">INITIAL POPULATIONS</p>
-
-          {[
-            { label: "Plants", key: "plants", color: "#4ADE80", val: initialPlants, set: setInitialPlants },
-            { label: "Herbivores", key: "herbivores", color: "#60A5FA", val: initialHerbivores, set: setInitialHerbivores },
-            { label: "Carnivores", key: "carnivores", color: "#F87171", val: initialCarnivores, set: setInitialCarnivores },
-          ].map(({ label, color, val, set }) => (
-            <div key={label} className="mb-2 last:mb-0">
-              <label className="text-text-muted text-xs flex items-center gap-1.5 mb-1">
-                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-                {label}
-              </label>
-              <input type="number"
-                value={val}
-                onChange={(e) => set(Number(e.target.value))}
-                className="w-full bg-elevated border border-border rounded text-text-primary font-mono text-sm px-2 py-1.5
-                  focus:border-accent outline-none ring-1 ring-accent/20"
-              />
-            </div>
-          ))}
-
-          <div className="border-t border-border my-3" />
-
+    <div className="min-h-screen bg-canvas p-6 lg:p-8 space-y-6">
+      {/* Top Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-border">
+        <div>
           <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${isConnected ? "bg-accent" : "bg-danger"} ${isConnected ? "" : "animate-pulse"}`} />
-            <span className="text-text-muted text-xs font-mono">{isConnected ? "Connected" : "Disconnected"}</span>
+            <h1 className="text-2xl font-bold font-sans tracking-tight text-charcoal">
+              Execution Overview
+            </h1>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-2xs font-mono font-semibold bg-canvas-well text-charcoal-secondary border border-stone-border">
+              <span className="w-1.5 h-1.5 rounded-full bg-forest animate-pulse" />
+              LIVE TELEMETRY
+            </span>
           </div>
-        </Card>
-      </div>
-
-      {/* CENTER COLUMN — Live Chart */}
-      <div className="space-y-4 flex flex-col">
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { label: "Plants", key: "plants", value: state.plants, delta: deltas.plants, colorClass: "text-plants", color: COLORS.plants },
-            { label: "Herbivores", key: "herbivores", value: state.herbivores, delta: deltas.herbivores, colorClass: "text-herbivores", color: COLORS.herbivores },
-            { label: "Carnivores", key: "carnivores", value: state.carnivores, delta: deltas.carnivores, colorClass: "text-carnivores", color: COLORS.carnivores },
-          ].map(({ label, key, value, delta, colorClass, color }) => (
-            <div key={label} className="bg-surface border border-border rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                <p className="text-text-muted text-xs font-mono uppercase tracking-wider">{label}</p>
-              </div>
-              <p className={`text-2xl font-mono font-medium stat-value ${colorClass}`}>
-                {formatPop(value)}
-              </p>
-              {delta !== 0 && (
-                <p className={`text-xs font-mono mt-1 animate-slide-up ${delta > 0 ? "text-accent" : "text-danger"}`}>
-                  {delta > 0 ? "\u2191" : "\u2193"} {formatPop(Math.abs(delta))}
-                </p>
-              )}
-            </div>
-          ))}
+          <p className="text-sm text-charcoal-secondary mt-1">
+            Real-time lifecycle monitoring, failure diagnosis, and recovery dispatch.
+          </p>
         </div>
 
-        <Card className="flex flex-col flex-1 min-h-0">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-text-muted font-mono text-xs tracking-widest">POPULATION DYNAMICS</p>
-            <span className="text-accent font-mono text-xs">TICK {(state.tick ?? 0).toLocaleString()}</span>
-          </div>
-          <div className="flex-1">
-            <LineChart data={history} series={[
-              { key: "plants", color: COLORS.plants, label: "Plants" },
-              { key: "herbivores", color: COLORS.herbivores, label: "Herbivores" },
-              { key: "carnivores", color: COLORS.carnivores, label: "Carnivores" },
-            ]} height={300} />
-          </div>
-        </Card>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={loadDashboardData}
+            loading={loading}
+            icon={<RefreshCw className="w-3.5 h-3.5" />}
+          >
+            Sync
+          </Button>
 
-        <Card>
-          <CollapseGauge risk={collapseRisk} />
-        </Card>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => navigate("/executions?new=true")}
+            icon={<Plus className="w-4 h-4" />}
+          >
+            Submit Task
+          </Button>
+        </div>
       </div>
 
-      {/* RIGHT COLUMN — AI Analysis + Forecast */}
-      <div className="space-y-4">
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-text-muted font-mono text-xs tracking-widest">AI ANALYSIS</p>
-            <Badge variant="neutral">{insight?.model || "local"}</Badge>
+      {errorMsg && (
+        <div className="p-4 rounded-xl bg-terracotta-ghost border border-terracotta-edge text-terracotta text-sm flex items-center justify-between">
+          <span>{errorMsg}</span>
+          <button onClick={() => setErrorMsg("")} className="font-bold ml-4">✕</button>
+        </div>
+      )}
+
+      {/* Metrics Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Total Submissions"
+          value={stats.total}
+          icon={Inbox}
+          badge="Lifetime"
+          badgeVariant="neutral"
+          subtext="Total tasks ingested across all queues"
+        />
+
+        <StatCard
+          title="In Progress"
+          value={activeCount}
+          icon={Activity}
+          badge={activeCount > 0 ? "Processing" : "Idle"}
+          badgeVariant={activeCount > 0 ? "info" : "neutral"}
+          subtext={`${stats.running || 0} active, ${stats.pending || 0} queued`}
+        />
+
+        <StatCard
+          title="Needs Recovery"
+          value={recoveryCount}
+          icon={ShieldAlert}
+          badge={recoveryCount > 0 ? "Action Required" : "Clean"}
+          badgeVariant={recoveryCount > 0 ? "danger" : "success"}
+          subtext={`${stats.failed || 0} failed, ${stats.retrying || 0} retrying`}
+          onClick={() => setFilter("recovery")}
+        />
+
+        <StatCard
+          title="Completed Safely"
+          value={stats.completed}
+          icon={CheckCircle2}
+          badge={`${successRate}% Success`}
+          badgeVariant="success"
+          subtext="Successfully finalized execution lifecycle"
+        />
+      </div>
+
+      {/* Welcome / Onboarding Card when 0 executions */}
+      {stats.total === 0 && !loading && (
+        <div className="bg-surface border border-stone-border rounded-2xl p-6 lg:p-8 shadow-card">
+          <div className="max-w-2xl space-y-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-medium bg-forest-ghost text-forest border border-forest-border">
+              <Zap className="w-3.5 h-3.5" /> Getting Started with Runnel
+            </div>
+            <h2 className="text-xl font-bold text-charcoal">
+              Welcome to your Async Work Recovery Inbox
+            </h2>
+            <p className="text-sm text-charcoal-secondary leading-relaxed">
+              Runnel tracks the complete execution lifecycle of your background jobs, microservice webhooks, and distributed tasks. Inspect attempt timelines, catch structured errors, and safely retry transient failures without data loss.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <Button
+                variant="primary"
+                onClick={() => handleQuickSubmit("echo")}
+                loading={quickSubmitting}
+                icon={<Play className="w-3.5 h-3.5" />}
+              >
+                Dispatch Test Task (Echo)
+              </Button>
+
+              <Button
+                variant="secondary"
+                onClick={() => handleQuickSubmit("fail")}
+                loading={quickSubmitting}
+                icon={<AlertTriangle className="w-3.5 h-3.5 text-terracotta" />}
+              >
+                Test Recovery Flow (Fail & Retry)
+              </Button>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-stone-border text-xs font-mono text-charcoal-secondary">
+              <p className="mb-2 font-semibold uppercase tracking-wider text-charcoal-muted">
+                HTTP API Dispatch Snippet:
+              </p>
+              <div className="bg-canvas-well border border-stone-border rounded-lg p-3 overflow-x-auto text-charcoal">
+                <code>
+                  curl -X POST http://localhost:5000/api/v1/executions \<br />
+                  &nbsp;&nbsp;-H &quot;Authorization: Bearer {token ? `${token.slice(0, 16)}...` : "&lt;JWT_TOKEN&gt;"}&quot; \<br />
+                  &nbsp;&nbsp;-H &quot;Content-Type: application/json&quot; \<br />
+                  &nbsp;&nbsp;-d &apos;{JSON.stringify({ name: "Daily Invoice Batch", type: "echo", input: { count: 120 } })}&apos;
+                </code>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Grid: Recent Activity & Side Intelligence */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Recent Activity (2 Cols) */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="bg-surface border border-stone-border rounded-2xl shadow-card overflow-hidden">
+            {/* Table Header & Filter Tabs */}
+            <div className="p-5 border-b border-stone-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-charcoal">
+                  Recent Executions
+                </h3>
+                <p className="text-xs text-charcoal-secondary">
+                  Showing latest active and recoverable background tasks
+                </p>
+              </div>
+
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-1 bg-canvas-well p-1 rounded-lg border border-stone-border text-xs font-mono">
+                {[
+                  { key: "all", label: "All" },
+                  { key: "recovery", label: `Recovery (${recoveryCount})` },
+                  { key: "active", label: `Active (${activeCount})` },
+                  { key: "completed", label: "Completed" },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setFilter(tab.key)}
+                    className={`px-2.5 py-1 rounded-md transition-all font-medium ${
+                      filter === tab.key
+                        ? "bg-surface text-charcoal shadow-sm border border-stone-border"
+                        : "text-charcoal-secondary hover:text-charcoal"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* List / Table Content */}
+            {filteredExecutions.length === 0 ? (
+              <div className="p-8">
+                <EmptyState
+                  title="No executions matching this filter"
+                  description="Submit a new background job or change your active filter tab."
+                  actionText="Submit Execution"
+                  onAction={() => navigate("/executions?new=true")}
+                />
+              </div>
+            ) : (
+              <div className="divide-y divide-stone-border">
+                {filteredExecutions.map((item) => {
+                  const canRetry = ["failed", "cancelled"].includes(item.status);
+                  const canCancel = ["pending", "retrying"].includes(item.status);
+
+                  return (
+                    <div
+                      key={item._id}
+                      onClick={() => navigate(`/executions/${item._id}`)}
+                      className="p-4 sm:px-5 flex items-center justify-between gap-4 hover:bg-surface-hover cursor-pointer transition-colors group"
+                    >
+                      {/* Left: Status & Identity */}
+                      <div className="min-w-0 flex items-center gap-3">
+                        <StatusBadge status={item.status} size="xs" />
+
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm text-charcoal group-hover:text-forest truncate">
+                              {item.name}
+                            </span>
+                            <span className="text-2xs font-mono px-1.5 py-0.5 rounded bg-canvas-well border border-stone-border text-charcoal-muted uppercase">
+                              {item.type}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3 text-xs text-charcoal-muted font-mono mt-0.5">
+                            <span className="truncate max-w-[120px] sm:max-w-none">
+                              ID: {item._id}
+                            </span>
+                            <span>•</span>
+                            <span>
+                              Attempts: {item.attemptsMade || 0}/{item.maxAttempts || 3}
+                            </span>
+                            {item.error?.message && (
+                              <>
+                                <span>•</span>
+                                <span className="text-terracotta truncate max-w-[180px]">
+                                  {item.error.message}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: Actions */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {canRetry && (
+                          <Button
+                            variant="secondary"
+                            size="xs"
+                            onClick={(e) => handleRetry(item._id, e)}
+                            loading={actionLoading === item._id}
+                            icon={<RotateCcw className="w-3 h-3 text-forest" />}
+                          >
+                            Retry
+                          </Button>
+                        )}
+
+                        {canCancel && (
+                          <Button
+                            variant="secondary"
+                            size="xs"
+                            onClick={(e) => handleCancel(item._id, e)}
+                            loading={actionLoading === item._id}
+                            icon={<Ban className="w-3 h-3 text-charcoal-muted" />}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+
+                        <ArrowRight className="w-4 h-4 text-charcoal-muted group-hover:text-charcoal group-hover:translate-x-0.5 transition-all" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* View All Footer */}
+            <div className="p-3 bg-canvas-well/40 border-t border-stone-border text-center">
+              <Link
+                to="/executions"
+                className="text-xs font-mono font-semibold text-forest hover:underline inline-flex items-center gap-1.5"
+              >
+                Open Full Execution Inbox ({stats.total} records) <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Failure Intelligence & Quick Dispatcher */}
+        <div className="space-y-6">
+          {/* Quick Dispatch Card */}
+          <div className="bg-surface border border-stone-border rounded-2xl p-5 shadow-card space-y-4">
+            <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-charcoal-muted">
+              <Terminal className="w-4 h-4 text-forest" /> Quick Task Dispatcher
+            </div>
+            <p className="text-xs text-charcoal-secondary leading-relaxed">
+              Dispatch predefined task patterns immediately to test worker processing, telemetry streams, and recovery queues.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handleQuickSubmit("echo")}
+                loading={quickSubmitting}
+                className="w-full text-xs"
+              >
+                + Echo Task
+              </Button>
+
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handleQuickSubmit("fail")}
+                loading={quickSubmitting}
+                className="w-full text-xs text-terracotta border-terracotta/30"
+              >
+                + Fail Task
+              </Button>
+            </div>
+
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate("/executions?new=true")}
+              className="w-full text-xs"
+              icon={<Plus className="w-3.5 h-3.5" />}
+            >
+              Configure Custom Execution
+            </Button>
           </div>
 
-          {insightLoading ? (
-            <div className="space-y-2">
-              <Skeleton height="0.75rem" />
-              <Skeleton height="0.75rem" width="85%" />
-              <Skeleton height="0.75rem" width="65%" />
+          {/* Operational Health & Worker Status */}
+          <div className="bg-surface border border-stone-border rounded-2xl p-5 shadow-card space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono uppercase tracking-wider text-charcoal-muted">
+                Worker Infrastructure
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono bg-[rgba(47,125,90,0.08)] text-[#2F7D5A] border border-[rgba(47,125,90,0.25)]">
+                ● ACTIVE
+              </span>
             </div>
-          ) : (
-            <p className="text-text-secondary text-sm leading-relaxed">
-              {insight?.insight || "No insight yet"}
-            </p>
-          )}
 
-          <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
-            <Button variant="ghost" size="sm" onClick={fetchInsight}>
-              ↻ Refresh
-            </Button>
-            {secondsAgo !== null && (
-              <span className="text-text-muted text-xs font-mono">Updated {secondsAgo}s ago</span>
+            <div className="space-y-2 text-xs font-mono">
+              <div className="flex justify-between py-1.5 border-b border-stone-border/60">
+                <span className="text-charcoal-secondary">Queue Engine</span>
+                <span className="text-charcoal font-semibold">BullMQ / Redis</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-stone-border/60">
+                <span className="text-charcoal-secondary">Queue Name</span>
+                <span className="text-charcoal font-semibold">runnel-executions</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-stone-border/60">
+                <span className="text-charcoal-secondary">Concurrency Cap</span>
+                <span className="text-charcoal font-semibold">4 Workers</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-stone-border/60">
+                <span className="text-charcoal-secondary">Retry Backoff</span>
+                <span className="text-charcoal font-semibold">Exponential (5s)</span>
+              </div>
+              <div className="flex justify-between py-1.5">
+                <span className="text-charcoal-secondary">Max Attempt Limit</span>
+                <span className="text-charcoal font-semibold">Bounded (2 × Max)</span>
+              </div>
+            </div>
+
+            {lastEvent && (
+              <div className="mt-3 p-2.5 rounded-lg bg-canvas-well border border-stone-border text-2xs font-mono">
+                <div className="flex items-center justify-between text-charcoal-muted mb-1">
+                  <span>LAST WS TRANSITION</span>
+                  <span>{lastEvent.timestamp}</span>
+                </div>
+                <div className="text-charcoal truncate">
+                  ID: {lastEvent.executionId} → <span className="font-semibold uppercase">{lastEvent.status}</span>
+                </div>
+              </div>
             )}
           </div>
-
-          <div className="mt-3 pt-3 border-t border-border space-y-1.5">
-            <div className="flex justify-between text-xs font-mono">
-              <span className="text-text-muted">Collapse Risk</span>
-              <span className={collapseRisk < 0.3 ? "text-plants" : collapseRisk < 0.7 ? "text-warning" : "text-danger"}>
-                {Math.round(collapseRisk * 100)}%
-              </span>
-            </div>
-            <div className="flex justify-between text-xs font-mono">
-              <span className="text-text-muted">Trend</span>
-              <span className="text-text-secondary">
-                {deltas.plants + deltas.herbivores + deltas.carnivores > 0 ? "\u2191 Growing" : "\u2193 Declining"}
-              </span>
-            </div>
-            <div className="flex justify-between text-xs font-mono">
-              <span className="text-text-muted">Tick</span>
-              <span className="text-text-secondary">{(state.tick ?? 0).toLocaleString()}</span>
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <ForecastCard forecast={forecast} />
-        </Card>
+        </div>
       </div>
     </div>
   );

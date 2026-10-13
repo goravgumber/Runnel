@@ -3,16 +3,18 @@ const dotenv = require("dotenv");
 const { z } = require("zod");
 const logger = require("./logger");
 
+// Load root .env or backend/.env
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().int().positive().default(5000),
-  MONGO_URI: z.string().min(1, "MONGO_URI is required"),
-  JWT_SECRET: z.string().min(12, "JWT_SECRET must be at least 12 characters"),
+  MONGO_URI: z.string().default("mongodb://127.0.0.1:27017/ecosystem"),
+  JWT_SECRET: z.string().min(12, "JWT_SECRET must be at least 12 characters").default("development_fallback_secret_key_9999"),
   JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
   JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
-  ML_SERVICE_URL: z.string().url("ML_SERVICE_URL must be a valid URL"),
+  ML_SERVICE_URL: z.string().url("ML_SERVICE_URL must be a valid URL").optional(),
   FRONTEND_URL: z.string().url("FRONTEND_URL must be a valid URL").optional(),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(1000),

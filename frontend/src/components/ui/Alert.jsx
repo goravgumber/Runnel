@@ -9,10 +9,11 @@ export default function Alert({ variant = "info", onClose, children, className =
   }, [onClose])
 
   const variants = {
-    info: "border-status-info/20 bg-blue-950/20 text-ink-primary",
-    warning: "border-status-warning/20 bg-warning-bg text-ink-primary",
-    danger: "border-status-danger/20 bg-danger-bg text-ink-primary",
-    success: "border-green-vivid/20 bg-green-ghost text-ink-primary",
+    info: "border-info/30 bg-info-bg text-hi",
+    warning: "border-warn/30 bg-warn-bg text-warn",
+    danger: "border-danger/30 bg-danger-bg text-danger",
+    error: "border-danger/40 bg-danger-bg text-danger",
+    success: "border-ok/30 bg-ok-bg text-ok",
   }
 
   return (

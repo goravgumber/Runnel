@@ -1,39 +1,35 @@
 import { NavLink } from "react-router-dom";
+import { LayoutDashboard, Inbox, Settings } from "lucide-react";
 
 const links = [
-  { to: "/", label: "Dashboard" },
-  { to: "/monitoring", label: "Monitoring" },
-  { to: "/history", label: "History" },
-  { to: "/simulation", label: "Simulation" },
-  { to: "/predictions", label: "Predictions" },
-  { to: "/alerts", label: "Alerts" },
-  { to: "/reports", label: "Reports" },
-  { to: "/logbook", label: "Logbook" },
-  { to: "/settings", label: "Settings" },
+  { to: "/", label: "Overview", icon: LayoutDashboard },
+  { to: "/executions", label: "Execution Inbox", icon: Inbox },
+  { to: "/settings", label: "Settings", icon: Settings },
 ];
 
 export default function Sidebar() {
   return (
-    <div className="h-full bg-surface border-r border-border-default p-4 flex flex-col">
-      <div className="mb-8">
-        <h1 className="text-text-primary font-semibold text-sm font-mono">Ecosystem</h1>
-        <p className="text-text-muted text-xs font-mono">Simulator v3</p>
+    <div className="h-full bg-surface border-r border-stone-border p-4 flex flex-col font-sans">
+      <div className="mb-6 px-1">
+        <h1 className="text-forest font-bold text-sm font-sans tracking-wide">RUNNEL</h1>
+        <p className="text-charcoal-muted text-[10px] font-mono uppercase">Recovery Inbox</p>
       </div>
       <nav className="flex-1 space-y-1">
-        {links.map((link) => (
+        {links.map(({ to, label, icon: Icon }) => (
           <NavLink
-            key={link.to}
-            to={link.to}
-            end={link.to === "/"}
+            key={to}
+            to={to}
+            end={to === "/"}
             className={({ isActive }) =>
-              `block px-3 py-2 rounded text-sm font-mono transition-colors ${
+              `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                 isActive
-                  ? "bg-accent/10 text-accent"
-                  : "text-text-muted hover:text-text-primary hover:bg-elevated"
+                  ? "bg-forest-ghost text-forest font-semibold"
+                  : "text-charcoal-secondary hover:text-charcoal hover:bg-canvas-well"
               }`
             }
           >
-            {link.label}
+            <Icon className="w-4 h-4" />
+            <span>{label}</span>
           </NavLink>
         ))}
       </nav>
