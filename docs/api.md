@@ -164,3 +164,12 @@ Hard delete an execution and associated attempts (Admin only).
 - `GET /health` — General health status, uptime, and version.
 - `GET /health/live` — Liveness probe (HTTP 200 while process is running).
 - `GET /health/ready` — Readiness probe (validates active MongoDB and Redis connectivity).
+
+---
+
+## 6. Related Technical Documentation
+
+- [System Architecture](architecture.md) — Platform layout, worker registry, and SSRF security boundaries
+- [Local Development Guide](development.md) — Prerequisites, environment variables, and setup instructions
+- [Deployment Guide](deployment.md) — Production topologies, TLS termination, and operational runbooks
+- [Testing & Quality Assurance Guide](testing.md) — Test matrix, hermetic test execution, and security boundaries

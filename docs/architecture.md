@@ -77,3 +77,12 @@ Outbound webhooks executed by background workers enforce defense-in-depth protec
 
 - **Docker Compose (Default / Local Staging)**: Orchestrates API backend, React frontend, Nginx reverse proxy, MongoDB 6.0, and Redis 7.0 Alpine.
 - **Docker Compose Production (`docker-compose.prod.yml`)**: Restricts MongoDB and Redis ports to the private container network, enables TLS termination and security headers (CSP, HSTS) in Nginx, and enforces strict production environment validation.
+
+---
+
+## 4. Related Technical Documentation
+
+- [API Reference](api.md) — Comprehensive REST API endpoint definitions and schemas
+- [Local Development Guide](development.md) — Prerequisites, environment variables, and setup instructions
+- [Deployment Guide](deployment.md) — Production topologies, TLS termination, and operational runbooks
+- [Testing & Quality Assurance Guide](testing.md) — Test matrix, hermetic test execution, and security boundaries

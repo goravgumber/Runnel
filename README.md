@@ -1,344 +1,269 @@
 # Runnel
 
 > **A recovery inbox for asynchronous work.**  
-> Submit background tasks, track execution lifecycles, inspect attempt histories, understand failures, retry work safely, and maintain a reliable operational record.
+> Submit background tasks and webhooks, inspect execution lifecycles, diagnose attempt errors with structured stack traces, retry work safely with bounded idempotency, and automatically reconcile stuck tasks after worker disruptions.
+
+[![CI](https://github.com/goravgumber/Runnel/actions/workflows/ci.yml/badge.svg)](https://github.com/goravgumber/Runnel/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-forest.svg)](LICENSE)
+[![Node.js 22](https://img.shields.io/badge/Node.js-22.x-1B4332.svg)](https://nodejs.org/)
+[![React 19](https://img.shields.io/badge/React-19.x-blue.svg)](https://react.dev/)
 
 ---
 
-## 1. Product Overview
+## Product Showcase
 
-In modern distributed systems, background tasks and asynchronous operations fail silently or vanish into opaque log streams. **Runnel** provides engineering teams with a dedicated, observable inbox to monitor, diagnose, and recover background work.
-
-### Core Capabilities
-- **Execution Inbox & Recovery Center:** Filter, search, and paginate through asynchronous background executions by status (`pending`, `running`, `completed`, `failed`, `retrying`, `cancelled`).
-- **Atomic Attempt Lifecycles:** Track multiple attempts per execution with execution durations, structured error codes, stack traces, and attempt timestamps.
-- **Safe, Bounded Retries:** Trigger manual and automatic retries bounded by configurable policy limits and idempotency keys to eliminate duplicate side effects.
-- **Idempotency & Conflict Detection:** Per-user idempotency keys calculate deterministic payload hashes, rejecting payload collisions with `409 CONFLICT` and deduplicating retried requests.
-- **Real-Time WebSocket Streaming:** Live status updates, attempt counts, and queue activity streamed instantly over authenticated Socket.IO rooms.
-- **Developer-First API & Presets:** Dispatch executions directly from your CLI, CI/CD pipeline, or scripts with standardized bearer tokens and cURL examples.
-- **Stitch Design Identity:** Warm ivory canvas (`#FBF9F3`), structural white surfaces (`#FFFFFF`), forest green primary accents (`#1B4332`), and restrained terracotta alerts (`#B63B32`).
-- **Independent Viewport Scrolling:** Fixed desktop sidebar navigation with independently scrollable main execution log and responsive mobile navigation drawer.
-- **Zero-Cruft Architecture:** Pure Runnel recovery inbox with all obsolete ecosystem simulation and ML services safely excised.
+### Overview Dashboard & Execution Metrics
+![Runnel Overview Dashboard](assets/screenshots/dashboard-desktop.png)
 
 ---
 
-## 2. Architecture
+### Core Product Experience
 
-Runnel is built on a high-throughput, horizontally scalable Node.js/BullMQ backend and a React 19 frontend.
+| Execution Inbox & Status Filters | Attempt History & Diagnostics Drawer |
+|:---:|:---:|
+| ![Execution Inbox](assets/screenshots/execution-inbox-desktop.png) | ![Attempt History Drawer](assets/screenshots/execution-details-attempts.png) |
+| *Real-time inbox tracking pending, running, completed, and failed executions* | *Deep attempt timeline showing worker metadata, error codes, and traces* |
 
-```text
-Browser (React 19 + Vite 7 + Tailwind CSS)
-        │
-        │   REST API (/api/v1)  ·  Socket.IO (Authenticated user rooms)
-        ▼
-Express API Gateway (Node.js, Port 5000)
-        │
-        ├── Authentication Module (JWT + bcrypt + Session Rotation)
-        ├── Execution Module (Idempotency, State Transitions, Attempt History)
-        ├── User & Policy Store
-        │
-        ├── MongoDB (Persistence)
-        │       Executions, Attempts, Users, Operational Logs
-        │
-        ├── Redis (BullMQ Infrastructure)
-        │       Queue: runnel-executions (Concurrency: 4)
-        │       Rate Limiting & Token Revocation
-        │
-        └── BullMQ Execution Worker
-                Lifecycle runner, retry bounds, attempt logging,
-                error stack capture, and Socket.IO emission
+| Safe Recovery Retry Modal | Developer Queue & Operational Settings |
+|:---:|:---:|
+| ![Recovery Retry Modal](assets/screenshots/execution-recovery-state.png) | ![Settings Page](assets/screenshots/settings-desktop.png) |
+| *Confirmation dialog enforcing bounded retry budgets (`maxAttempts * 2`)* | *Configurable retry backoffs, timeouts, and quota rules* |
+
+---
+
+### Authentication & Responsive Experience
+
+| Developer Sign In | Account Registration | Mobile Inbox View (390×844) |
+|:---:|:---:|:---:|
+| ![Sign In Screen](assets/screenshots/login-desktop.png) | ![Sign Up Screen](assets/screenshots/signup-desktop.png) | ![Mobile Inbox View](assets/screenshots/execution-inbox-mobile.png) |
+| *JWT dual-token session management* | *Fast registration with role authorization* | *Responsive mobile drawer navigation* |
+
+---
+
+## Why Runnel Exists
+
+In distributed backend architectures, background tasks, asynchronous event pipelines, and outbound webhooks routinely fail silently or get buried inside hundreds of megabytes of raw application logs. When a webhook times out, a worker drops offline during deployment, or a third-party API returns an unexpected error, engineers often lack:
+
+1. **Immediate Visibility**: An observable inbox showing the real-time status of asynchronous jobs.
+2. **Attempt History**: Granular, chronological attempt logs recording exact runtimes, response codes, and sanitized headers.
+3. **Safe Manual Retries**: Guardrails that prevent double-enqueuing, accidental race conditions, or unbounded retries.
+4. **Automated Recovery**: Self-healing reconciliation when background worker processes crash mid-execution.
+
+**Runnel** solves this by providing a unified **recovery inbox**: a dedicated interface and robust API to submit asynchronous executions, observe progress in real time, inspect exact failure reasons, retry work safely, and maintain an immutable operational audit log.
+
+---
+
+## Core Capabilities
+
+- **Observable Execution Inbox**: Filter, search, and paginate through asynchronous executions by status (`pending`, `running`, `completed`, `failed`, `retrying`, `cancelled`).
+- **Atomic Attempt Lifecycles**: Every execution captures an array of chronological `ExecutionAttempt` records with wall-clock execution duration, BullMQ worker metadata, error classifications, and stack traces.
+- **Safe, Bounded Retries**: Trigger manual retries bounded by configurable policy limits (`maxAttempts * 2`). Concurrency-safe atomic transitions prevent double-enqueues.
+- **Idempotency & Collision Protection**: Per-user `idempotencyKey` values compute canonical SHA-256 payload hashes. Matching submissions return existing records; altered payloads reject with `409 Conflict`.
+- **Outbound Webhook Dispatcher with SSRF Boundaries**: Native HTTP/HTTPS client featuring RFC-compliant IP address filtering (`ipaddr.js`), cloud metadata blocking (AWS, Azure, GCP), DNS pinning to eliminate TOCTOU rebinding, manual redirect validation (max 3 hops), header sanitization, and 1 MB response body buffering.
+- **Automated Stuck-Execution Recovery**: Self-healing reconciliation engine that runs periodically to detect executions abandoned by crashed worker processes, validates live queue state, and safely recovers or fails jobs using a Redis-backed distributed mutex lock.
+- **Real-Time Live Streaming**: Push updates over authenticated Socket.IO rooms for status changes and attempt completions without aggressive polling.
+- **Strict Tenant Isolation**: Per-user data partitioning ensures executions, attempts, and stats are inaccessible across accounts.
+
+---
+
+## How It Works
+
+```mermaid
+flowchart TD
+    subgraph Client["Client Tier"]
+        UI["React 19 SPA (Vite)"]
+        External["External API Clients"]
+    end
+
+    subgraph Gateway["API Gateway (Port 5000)"]
+        Router["Express Router (/api/v1)"]
+        Auth["JWT Auth & Rate Limiting"]
+        ExecEngine["Execution Lifecycle Engine"]
+    end
+
+    subgraph Persistence["Storage & Queues"]
+        Mongo[("MongoDB 6.0<br/>Executions & Attempts")]
+        Redis[("Redis 7.0<br/>BullMQ & Mutex Locks")]
+    end
+
+    subgraph Workers["Worker Subsystem"]
+        Worker["BullMQ Worker<br/>(Queue: runnel-executions)"]
+        Webhook["Webhook Dispatcher<br/>(SSRF Guard & DNS Pinning)"]
+        Recovery["Stuck-Execution Reconciler<br/>(Periodic Mutex Sweep)"]
+    end
+
+    UI -->|"REST / WebSocket"| Router
+    External -->|"REST (Bearer Auth)"| Router
+    Router --> Auth --> ExecEngine
+    ExecEngine -->|"Store record"| Mongo
+    ExecEngine -->|"Enqueue job"| Redis
+    Redis -->|"Fetch job"| Worker
+    Worker -->|"Execute HTTP/S"| Webhook
+    Worker -->|"Log attempt"| Mongo
+    Worker -->|"Emit status"| UI
+    Recovery -.->|"Reconcile abandoned jobs"| Mongo
+    Recovery -.->|"Validate job presence"| Redis
 ```
 
-### Layout Architecture
-- **Desktop (>= 1024px):** Fixed-height viewport (`h-screen overflow-hidden`). The sidebar navigation remains anchored to the viewport at all times, with internal scrolling for overflow. The main content region (`<main className="flex-1 min-w-0 min-h-0 h-full overflow-y-auto">`) scrolls independently without page-level jitter.
-- **Mobile (< 768px):** Sticky top bar with quick submission trigger and navigation drawer toggle. Fluid off-canvas slide-over drawer with backdrop overlay.
+*Note: In the default deployment topology, the Express API Gateway, BullMQ Worker, and Stuck-Execution Recovery Service run within the backend Node.js process for lightweight simplicity, while communicating with MongoDB and Redis over private connections.*
 
 ---
 
-## 3. Technology Stack
+## Technology Stack
 
 | Layer | Technologies |
-|---|---|
+|:---|:---|
 | **Frontend** | React 19, Vite 7, React Router 7, Tailwind CSS, Lucide Icons, Framer Motion, Socket.IO Client |
-| **API Server** | Node.js, Express 4, Mongoose 7, Socket.IO 4, Zod, Winston |
-| **Queue & Worker** | BullMQ 5, Redis 7 |
-| **Database** | MongoDB 6+ (with automatic embedded memory fallback for frictionless dev) |
-| **Testing** | Node.js native test runner (`node --test`), Supertest, MongoMemoryServer (Hermetic tests) |
+| **API Server** | Node.js (v22), Express 4, Mongoose 7, Socket.IO 4, Zod, Winston |
+| **Queue & Worker** | BullMQ 5, Redis 7 (with distributed mutex locking via `ioredis`) |
+| **Database** | MongoDB 6.0+ (with automatic embedded memory fallback for frictionless dev) |
+| **Reverse Proxy** | Nginx (TLS 1.2/1.3 termination, HSTS, CSP, and WebSocket upgrades) |
+| **Testing** | Node.js native test runner (`node --test`), Supertest, MongoMemoryServer (125 tests, 25 suites) |
+| **CI / DevOps** | GitHub Actions, Docker, Docker Compose |
 
 ---
 
-## 4. Screenshots
-
-| Sign In & Execution Lifecycle Preview | Overview Dashboard |
-|---|---|
-| ![Sign In](docs/screenshots/01_release_auth_login.png) | ![Overview Dashboard](docs/screenshots/02_release_overview_dashboard.png) |
-
-| Execution Inbox & Real Queues | Attempt Timeline & Error Diagnostics |
-|---|---|
-| ![Execution Inbox](docs/screenshots/03_release_execution_inbox.png) | ![Attempt Timeline](docs/screenshots/04_release_attempt_timeline_drawer.png) |
-
-| Recovery Retry Confirmation Dialog | Developer Preferences & API Security |
-|---|---|
-| ![Retry Confirmation](docs/screenshots/05_release_retry_confirmation_modal.png) | ![Developer Settings](docs/screenshots/06_release_settings_security.png) |
-
-| Mobile Responsive Viewport (390×844) |
-|---|
-| ![Mobile Navigation Drawer](docs/screenshots/07_release_mobile_drawer_390x844.png) |
-
----
-
-## 5. Getting Started
+## Quick Start
 
 ### Prerequisites
-- **Node.js** >= 18.0.0
-- **Redis** running locally on `127.0.0.1:6379` (or via Docker)
-- **MongoDB** running locally on `27017` *(optional: in dev mode, Runnel automatically boots an embedded in-memory MongoDB if external MongoDB is absent)*
+- **Node.js** `>= 18.0.0` (v22 recommended)
+- **Redis** running on `127.0.0.1:6379` (or via Docker)
+- **MongoDB** running on `27017` *(optional: in development, Runnel automatically boots an embedded in-memory MongoDB instance if no local MongoDB is detected)*
 
-### 1. Clone & Install Dependencies
+### 1. Local Development Setup
 ```bash
+# Clone the repository
 git clone https://github.com/goravgumber/Runnel.git
 cd Runnel
 
-# Install backend dependencies
+# Copy environment templates
+cp .env.example .env
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+
+# Install dependencies using lockfiles
 cd backend && npm ci
-
-# Install frontend dependencies
 cd ../frontend && npm ci
+
+# Seed development users (admin / Admin123!, testuser / User123!)
+cd ../backend && node scripts/seed.js
 ```
 
-### 2. Configure Environment
-```bash
-# In backend/
-cp .env.example .env
-
-# In frontend/
-cp .env.example .env
-```
-
-Default backend configuration (`backend/.env`):
-```env
-NODE_ENV=development
-PORT=5000
-MONGO_URI=mongodb://127.0.0.1:27017/runnel
-REDIS_URL=redis://127.0.0.1:6379
-JWT_SECRET=super-secret-runnel-key-at-least-32-chars
-JWT_EXPIRES_IN=15m
-JWT_REFRESH_EXPIRES_IN=7d
-```
-
-### 3. Launch Development Servers
-
-**Start Backend (API + Workers):**
+### 2. Start Development Servers
+**Terminal 1 — Backend API & Worker:**
 ```bash
 cd backend
 npm run dev
-# or: node server.js
+# Starts on http://localhost:5000
 ```
 
-**Start Frontend:**
+**Terminal 2 — Frontend Console:**
 ```bash
 cd frontend
 npm run dev
+# Starts on http://localhost:5173
 ```
-
-Visit **`http://localhost:5173`** in your browser.
+Visit **`http://localhost:5173`** to access the web application.
 
 ---
 
-### 6. Docker Deployment
+### 3. Docker Compose Deployment
 
-Deploy the container stack using Docker Compose:
-
-**Development & Local Staging:**
+**Local Staging (Complete Container Stack):**
 ```bash
 docker compose up -d
 ```
-Services started:
-- `runnel_mongodb` (Port 27017 mapped to loopback)
-- `runnel_redis` (Port 6380 mapped to loopback)
-- `runnel_backend` (Port 5000)
-- `runnel_frontend` (Port 8080)
-- `runnel_nginx` (Port 80 HTTP reverse proxy)
+Access the application on `http://localhost:8080` (or `http://localhost`).
 
-**Production Deployment (External Domain & TLS):**
+**Production Deployment (with TLS & Restricted Networks):**
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 ```
-Services started:
-- `runnel_nginx_prod` (Ports 80 HTTP & 443 HTTPS with TLS termination, HSTS, and CSP)
-- `runnel_frontend_prod` (Port 80 internal)
-- `runnel_backend_prod` (Port 5000 internal, non-root user `node`)
-- `runnel_mongodb_prod` (Port 27017 strictly private to container network)
-- `runnel_redis_prod` (Port 6379 strictly private to container network)
+For complete production runbooks, see [docs/deployment.md](docs/deployment.md).
 
 ---
 
-## 7. API Reference
+## Project Structure
 
-All protected endpoints require an `Authorization: Bearer <JWT_ACCESS_TOKEN>` header.
-
-### Authentication
-- `POST /api/v1/auth/signup` — Register a new account (`username`, `password`).
-- `POST /api/v1/auth/login` — Sign in and receive `accessToken` & `refreshToken`.
-- `POST /api/v1/auth/refresh` — Rotate refresh token for a new access token.
-- `GET /api/v1/auth/validate` — Validate current access token.
-- `GET /api/v1/auth/me` — Retrieve active user profile.
-- `POST /api/v1/auth/logout` — Revoke active token.
-- `POST /api/v1/auth/logout-all` — Invalidate all user sessions across devices.
-
-### Executions
-- `POST /api/v1/executions` — Submit a background execution job.
-  ```json
-  {
-    "name": "Sync Stripe Webhook",
-    "type": "webhook",
-    "input": {
-      "url": "https://api.example.com/webhooks/orders",
-      "method": "POST",
-      "headers": { "Content-Type": "application/json" },
-      "body": { "eventId": "evt_1002", "orderId": "ord_9901" }
-    },
-    "maxAttempts": 3,
-    "idempotencyKey": "webhook_evt_1002",
-    "tags": ["billing", "stripe"]
-  }
-  ```
-  *(Note: `type: "webhook"` is the primary production handler; `echo` and `fail` are development demo handlers disabled by default in production).*
-- `GET /api/v1/executions` — Paginated list with filters (`status`, `search`, `page`, `limit`).
-- `GET /api/v1/executions/:id` — Full execution details, input/output, and attempt history.
-- `POST /api/v1/executions/:id/retry` — Manually retry a failed or cancelled execution.
-- `POST /api/v1/executions/:id/cancel` — Cancel a pending or running execution.
-- `GET /api/v1/executions/stats` — Aggregated counts by status (`total`, `pending`, `running`, `completed`, `failed`, `retrying`, `cancelled`).
-
-
-### User & Policy Settings
-- `GET /api/v1/users/settings` — Get current user execution queue policies.
-- `PATCH /api/v1/users/settings` — Update operational policies (`defaultMaxAttempts`, `defaultExecutionTimeoutMs`, `retryBackoffMs`).
+```text
+Runnel/
+├── .github/
+│   └── workflows/
+│       └── ci.yml               # Authoritative CI pipeline (check, test, lint, build, docker)
+├── assets/
+│   └── screenshots/             # Authentic product screenshots and visual assets
+├── backend/
+│   ├── config/                  # Environment schemas (Zod), Winston logger, Redis client
+│   ├── controllers/             # Route controllers (auth, executions, admin, queues)
+│   ├── middleware/              # Auth, AppError, rate-limiter, request logger, tracing
+│   ├── models/                  # Mongoose models: User, Execution, ExecutionAttempt
+│   ├── routes/                  # Versioned API routes (/api/v1)
+│   ├── scripts/
+│   │   ├── migrations/          # Idempotent database migrations (001, 002)
+│   │   └── seed.js              # Development user fixture script
+│   ├── services/                # Auth service, stuck-execution recovery service
+│   ├── tests/                   # Native test suites (auth, executions, workers, security)
+│   ├── utils/                   # Webhook client (SSRF guard), response formatter, cache
+│   └── workers/                 # BullMQ execution worker & task handler registry
+├── deployment/
+│   └── nginx.conf               # Production Nginx reverse proxy configuration
+├── docs/
+│   ├── api.md                   # Comprehensive REST API reference
+│   ├── architecture.md          # Platform architecture and operational modules
+│   ├── deployment.md            # Production deployment topologies and runbooks
+│   ├── development.md           # Local setup, environment contracts, and developer tips
+│   └── testing.md               # Test matrix, SSRF validation, and recovery tests
+├── frontend/
+│   ├── src/
+│   │   ├── components/          # UI primitives: Button, Modal, Drawer, Table, StatusBadge
+│   │   ├── context/             # AuthContext (JWT management & session restore)
+│   │   ├── pages/               # Dashboard, ExecutionInbox, Login, Signup, Settings
+│   │   └── services/            # Axios/Fetch API clients & WebSocket connection
+│   └── vite.config.js           # Vite 7 build configuration and API proxy
+├── docker-compose.yml           # Default development container orchestration
+├── docker-compose.dev.yml       # Minimal backing-services Compose configuration
+├── docker-compose.prod.yml      # Hardened production Compose configuration
+├── CONTRIBUTING.md              # Contributor guidelines and standards
+├── SECURITY.md                  # Security policies and vulnerability disclosure
+└── LICENSE                      # MIT License
+```
 
 ---
 
----
+## Verification & Quality Gates
 
-## 8. Testing & Quality Gates
-
-Runnel includes a 100% hermetic automated test suite requiring no manual database setup:
+Runnel maintains an automated test matrix with 100% hermetic test execution:
 
 ```bash
-# Run all backend unit, integration, and security tests (125 tests across 25 suites)
-cd backend
-NODE_ENV=test npm test
+# Backend syntax check
+cd backend && npm run check
 
-# Run frontend code quality lint
-cd ../frontend
-npm run lint
+# Full backend test suite (125 tests across 25 suites)
+cd backend && npm test
 
-# Run frontend production bundle compilation
-npm run build
+# Frontend ESLint check
+cd ../frontend && npm run lint
+
+# Frontend production compilation
+cd ../frontend && npm run build
 ```
 
-### Verified Test Matrix
-- **Auth Suite:** Validation, password hashing, JWT rotation, session restore, duplicate username protection, protected route enforcement.
-- **Execution Lifecycle Suite:** Submission validation, bounded retries, idempotency and payload conflict checks, concurrency safety, cancellation rules, enqueue failure handling.
-- **Worker Suite:** Handler registry, execution job lifecycles, error recording, attempt logging.
-- **Webhook Security Suite (46 Tests):** Canonical URL parsing, non-public IP ranges (IPv4/IPv6 private, loopback, link-local, multicast, carrier-grade NAT), cloud metadata endpoints (169.254.169.254, fd00:ec2::254, metadata.google.internal), DNS-rebinding immunity via pinned socket lookup, redirect validation, header sanitization, credential redaction, and stream bounding.
-- **Reliable Stuck-Execution Recovery Suite (10 Tests):** Automated reconciliation pass, active BullMQ job preservation, delayed backoff retry preservation, worker interruption sync, concurrent race-condition safety, distributed locking across replicas, retry-limit exhaustion, database outage immunity, non-retryable execution flagging, and attempt history preservation.
-- **Database Migration & Index Suite (3 Tests):** Idempotent compound index verification, redundant index pruning, and query-pattern compatibility.
-- **Envelope & Utility Suite:** Role-based access control, standardized API envelopes, health readiness checks.
+For complete details on test coverage and security boundary tests, see [docs/testing.md](docs/testing.md).
 
 ---
 
-## 9. Backup, Disaster Recovery & Operational Procedures
+## Documentation Index
 
-Runnel state resides across MongoDB (primary state store) and Redis (ephemeral BullMQ queue data).
-
-### MongoDB Backup
-To capture a point-in-time snapshot of user executions, attempts, and accounts:
-```bash
-# Create compressed archive snapshot
-mongodump --uri="mongodb://localhost:27017/runnel" --archive=runnel_backup_$(date +%Y%m%d_%H%M%S).gz --gzip
-```
-
-### MongoDB Restoration
-To restore from a backup snapshot:
-```bash
-# Restore collections idempotently without dropping unrelated databases
-mongorestore --uri="mongodb://localhost:27017/runnel" --nsInclude="runnel.*" --archive=runnel_backup_20261013_120000.gz --gzip
-```
-
-### Automated Stuck-Execution Recovery Service
-Runnel features an automated, bounded, concurrency-safe reconciliation engine (`backend/services/executionRecoveryService.js`) that periodically detects executions abandoned due to worker container interruption, power failure, or ungraceful process crashes.
-
-#### 1. Configuration (`.env`)
-```bash
-RECOVERY_ENABLED=true                # Enable/disable periodic background recovery
-RECOVERY_INTERVAL_MS=60000          # Interval between reconciliation ticks (default: 60s)
-RECOVERY_STALE_THRESHOLD_MS=300000  # Threshold before running job is considered stale (default: 5m)
-RECOVERY_LOCK_TTL_MS=30000          # Redis distributed leader lock TTL (default: 30s)
-RECOVERY_BATCH_SIZE=50              # Maximum candidates examined per tick (default: 50)
-```
-
-#### 2. Recovery Semantics & Invariants
-- **BullMQ Queue Inspection:** Before mutating any candidate in MongoDB, the engine inspects the underlying BullMQ job in Redis.
-  - If the job is `active` (lock held by active worker) or `delayed` (scheduled or backoff retry), it is strictly preserved.
-  - If the job is `waiting` (interrupted worker), MongoDB is synchronized to `retrying` with code `WORKER_INTERRUPTED`.
-  - If the job is `completed` or `failed` in BullMQ while MongoDB remained `running`, MongoDB is updated to mirror final state.
-  - If the job is missing from Redis and retry budget is unexhausted, it is safely re-enqueued; if exhausted, marked `failed` with `RECOVERY_RETRIES_EXHAUSTED`.
-- **Atomic Concurrency Control:** All state transitions use atomic MongoDB preconditions (`{ _id, status: "running", updatedAt }`). Multiple concurrent worker instances cannot recover or re-enqueue the same execution twice.
-- **Distributed Leader Lock:** Replicas coordinate using Redis `SET runnel:locks:stuck-recovery <id> PX <ttl> NX` so only one instance reconciles at a time.
-- **Infrastructure Outage Immunity:** If MongoDB or Redis is disconnected, reconciliation aborts cleanly without misclassifying jobs as abandoned.
-- **Attempt History Preservation:** Dangling running attempts are closed with `status: "failed"`, audit reason `WORKER_INTERRUPTED`, and elapsed duration; prior attempt records are never deleted or modified.
-- **Genuine Operational Metrics:** Real-time metrics (`candidatesExamined`, `executionsRecovered`, `executionsRequeued`, `executionsFailed`, `skippedActive`, `skippedDelayed`, `reconciliationErrors`) are exposed via `/health` under `services.recovery`.
-
-#### 3. Manual Intervention Query (Fallback)
-If manual inspection or reconciliation is needed:
-```javascript
-// Query executions stalled in 'running' state longer than timeout threshold
-const STUCK_THRESHOLD_MS = 5 * 60 * 1000;
-const stuckExecutions = await Execution.find({
-  status: "running",
-  updatedAt: { $lt: new Date(Date.now() - STUCK_THRESHOLD_MS) }
-});
-```
-Operators can trigger manual retries directly from the UI or via `POST /api/v1/executions/:id/retry`.
-
-### Redis Persistence & Recovery
-Redis stores active BullMQ queue locks and delayed jobs. For production durability:
-- Enable Append-Only File (`appendonly yes` with `appendfsync everysec`) in `redis.conf`.
-- In the event of a total Redis restart, in-flight jobs in status `pending` or `retrying` can be reconciled against MongoDB records or retried through the Recovery Inbox.
+- **[System Architecture](docs/architecture.md)** — Architectural design, execution state machine, and SSRF boundary.
+- **[API Reference](docs/api.md)** — Complete endpoint definitions, request/response formats, and status codes.
+- **[Local Development Guide](docs/development.md)** — Step-by-step setup, configuration reference, and development workflows.
+- **[Production Deployment Guide](docs/deployment.md)** — VPS setup, Docker Compose production, TLS termination, and backup runbooks.
+- **[Testing & Quality Assurance Guide](docs/testing.md)** — Hermetic test details, webhook SSRF test matrix, and recovery verification.
+- **[Security Policy](SECURITY.md)** — Vulnerability reporting guidelines and architectural defenses.
+- **[Contributing Guidelines](CONTRIBUTING.md)** — Code of conduct and pull request standards.
 
 ---
 
-## 10. Security & Webhook Destination Policy
+## License
 
-Runnel treats security vulnerabilities with utmost seriousness.
-
-- **Webhook SSRF Protection:** In production environments, webhooks cannot target non-public IP destinations (RFC 1918 private subnets, loopback addresses, link-local cloud metadata endpoints). All DNS addresses are pre-resolved and pinned to the physical socket to prevent DNS rebinding attacks.
-- **Redirect Boundaries:** Webhooks follow a maximum of 3 redirects. Every redirect hop is independently validated against the destination policy; redirects attempting to pivot to private or cloud metadata IPs are rejected with `SSRF_BLOCKED`.
-- **Sensitive Header Redaction:** Authorization headers, tokens, cookies, and secret keys in webhook responses are automatically redacted before attempt history is persisted.
-- **Session Hardening:** Interactive session JWTs are separated from machine-to-machine integrations. Never reuse session tokens as permanent API keys.
-- **Secret Redaction:** Production health telemetry sanitizes hostnames, memory addresses, and system internals.
-- **Vulnerability Reporting:** Email security details directly to `security@runnel.dev` or file a private GitHub Security Advisory.
-
----
-
-## 11. Known Limitations & Roadmap
-
-- **Delivery Semantics:** Runnel provides *at-least-once* execution semantics for background tasks. Downstream handlers should implement idempotent side effects where duplicate execution is unacceptable.
-- **Dead Letter Queue (DLQ):** Failed jobs that exhaust their manual attempt limit (`maxAttempts * 2`) remain permanently in status `failed`. An automated dead-letter routing policy is planned for future milestones.
-- **Single-Node Queue Dispatch:** The default configuration runs with concurrency 4 on a single BullMQ worker instance. Horizontal multi-worker scaling requires configuring clustered Redis infrastructure.
-
----
-
-## 12. Contributing
-
-We welcome contributions from the community!
-1. Fork the repository and create your branch from `main`.
-2. Ensure all tests (`npm test` in `backend/`) and linters (`npm run lint` in `frontend/`) pass.
-3. Verify that your changes maintain the Stitch design tokens and do not expose sensitive credentials.
-4. Submit a Pull Request with a clear description of the problem and test coverage.
-
----
-
-## 13. License
-
-Distributed under the MIT License. See `LICENSE` for more information.
+This project is licensed under the [MIT License](LICENSE).

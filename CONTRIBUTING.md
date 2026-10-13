@@ -37,16 +37,16 @@ We are committed to providing a welcoming, inclusive, and professional environme
 4. Install backend dependencies and start API server:
    ```bash
    cd backend
-   npm install
+   npm ci
    npm run dev
    ```
 5. In another terminal, install frontend dependencies and start Vite dev server:
    ```bash
    cd frontend
-   npm install
+   npm ci
    npm run dev
    ```
-6. Access the application at `http://localhost:5173`.
+6. Access the application at `http://localhost:5173`. For full setup details, see [docs/development.md](docs/development.md).
 
 ---
 

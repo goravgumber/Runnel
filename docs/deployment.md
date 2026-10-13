@@ -206,3 +206,12 @@ If a new release encounters unexpected regressions:
   docker compose -f docker-compose.prod.yml logs backend | grep -i "\[Recovery\]"
   ```
 - If a worker crashes, the automated recovery service will identify abandoned executions after `RECOVERY_STALE_THRESHOLD_MS` (5 minutes) and transition eligible jobs to `retrying` with reason `WORKER_INTERRUPTED`.
+
+---
+
+## 7. Related Technical Documentation
+
+- [System Architecture](architecture.md) — Platform layout, worker registry, and SSRF security boundaries
+- [API Reference](api.md) — Comprehensive REST API endpoint definitions and schemas
+- [Local Development Guide](development.md) — Prerequisites, environment variables, and setup instructions
+- [Testing & Quality Assurance Guide](testing.md) — Test matrix, hermetic test execution, and security boundaries

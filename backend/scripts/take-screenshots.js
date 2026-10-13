@@ -117,7 +117,7 @@ async function run() {
   const capture = async (name) => {
     const res = await send("Page.captureScreenshot", { format: "png" });
     const buffer = Buffer.from(res.result.data, "base64");
-    const outPath = path.join(__dirname, "../../docs/screenshots", name);
+    const outPath = path.join(__dirname, "../../assets/screenshots", name);
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, buffer);
     console.log(`Saved screenshot: ${name} (${buffer.length} bytes)`);
