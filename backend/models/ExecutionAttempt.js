@@ -8,7 +8,6 @@ const executionAttemptSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Execution",
       required: true,
-      index: true,
     },
 
     userId: {

@@ -134,6 +134,12 @@ executionSchema.index(
   }
 );
 
+/** Fast unfiltered inbox listing: user + reverse-chron */
+executionSchema.index(
+  { userId: 1, createdAt: -1 },
+  { name: "idx_execution_user_created" }
+);
+
 /** Fast inbox listing: user + status + reverse-chron */
 executionSchema.index(
   { userId: 1, status: 1, createdAt: -1 },
