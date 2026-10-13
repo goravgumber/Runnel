@@ -132,8 +132,8 @@ Recruiter Browser / Public Clients
    - Cluster tier: M0 Sandbox (512 MB storage, shared RAM, MongoDB 8.0).
    - Region: Select an AWS region close to your Render deployment (e.g., `us-west-2` Oregon or `eu-central-1` Frankfurt).
 3. **Upstash Redis Account (Free Tier):**
-   - Free plan: Per [Upstash Redis Pricing](https://upstash.com/pricing/redis), the current free tier provides up to **500,000 commands per month** with a 100 MB data size limit and standard bandwidth caps.
-   - *Quota & Limit Verification:* Always check active limits, storage bounds, and quotas in your actual Upstash dashboard, as provider pricing and free tiers can change over time.
+   - Free plan: Per [Upstash Redis Pricing](https://upstash.com/pricing/redis), the current free tier provides up to **500,000 commands per month**, **250 MB data storage** (listed as 256 MB maximum data size in the detailed capacity specifications), and **10 GB monthly bandwidth**.
+   - *Quota & Limit Verification:* Always check active limits, storage bounds, and quotas in your actual Upstash console, as provider pricing and free tiers can change over time.
    - Connection type: Native Redis TCP over TLS (`rediss://...`).
 
 ---
@@ -271,7 +271,7 @@ As an alternative to manual dashboard setup, Runnel provides a root-level `rende
 | **Cold-Start Latency** | Booting Node.js from cold state takes **40 to 60 seconds**. | Displays clear banner: *"Waking up the demo backend — this may take up to a minute on the free hosting tier."* |
 | **Mutation Safety** | Auto-retrying state changes during spin-up could duplicate work. | **Never auto-retries mutations:** Sign-up, execution submission, retry, and cancellation are strictly user-initiated. Read-only stats auto-sync once online. |
 | **Background Processing** | BullMQ workers do not process jobs while the container is spun down. | Queued executions remain safe in Upstash Redis and resume immediately when the service wakes up. |
-| **Monthly Command Quota** | Upstash Free provides up to 500,000 commands / month (verify current limits at [upstash.com/pricing/redis](https://upstash.com/pricing/redis)). | Client and internal polling intervals are bounded (12s–30s) to comfortably stay within monthly limits. |
+| **Monthly Command Quota & Storage** | Upstash Free provides up to 500,000 commands / month, 250 MB data storage (256 MB max capacity), and 10 GB monthly bandwidth (verify current limits at [upstash.com/pricing/redis](https://upstash.com/pricing/redis)). | Client and internal polling intervals are bounded (12s–30s) to comfortably stay within monthly limits. |
 | **Zero-Cost Safeguards** | Platforms may offer paid upgrades or add-on disks. | Runnel requires **no paid addons**. Do not attach persistent disks or select starter/standard instances. |
 
 ---
