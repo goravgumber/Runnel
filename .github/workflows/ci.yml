@@ -91,6 +91,9 @@ jobs:
   docker-validate:
     name: Docker Compose Validation
     runs-on: ubuntu-latest
+    env:
+      JWT_SECRET: "ci_sample_production_jwt_secret_32_chars_min"
+      FRONTEND_URL: "https://example.com"
     steps:
       - uses: actions/checkout@v4
       - name: Validate Default Compose
@@ -98,4 +101,4 @@ jobs:
       - name: Validate Dev Compose
         run: docker compose -f docker-compose.dev.yml config --quiet
       - name: Validate Production Compose
-        run: JWT_SECRET="ci_sample_production_jwt_secret_32_chars_min" FRONTEND_URL="https://example.com" docker compose -f docker-compose.prod.yml config --quiet
+        run: docker compose -f docker-compose.prod.yml config --quiet
