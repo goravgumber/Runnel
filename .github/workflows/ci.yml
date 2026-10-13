@@ -60,3 +60,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: JWT_SECRET="ci_sample_production_jwt_secret_32_chars_min" docker compose config --quiet
+      - run: JWT_SECRET="ci_sample_production_jwt_secret_32_chars_min" FRONTEND_URL="https://example.com" docker compose -f docker-compose.prod.yml config --quiet
+

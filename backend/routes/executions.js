@@ -7,6 +7,7 @@ const {
   validateList,
   validateId,
 } = require("../validators/executionValidator");
+const { executionSubmitLimiter } = require("../middleware/rateLimiter");
 const asyncHandler = require("../middleware/asyncHandler");
 const {
   submitExecution,
@@ -28,7 +29,7 @@ router.use(authMiddleware);
  * POST /api/v1/executions
  * Submit a new execution (or return an existing one via idempotency key).
  */
-router.post("/", validate(validateSubmit), asyncHandler(submitExecution));
+router.post("/", executionSubmitLimiter, validate(validateSubmit), asyncHandler(submitExecution));
 
 /**
  * GET /api/v1/executions/stats

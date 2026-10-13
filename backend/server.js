@@ -68,8 +68,8 @@ const apiLimiter = rateLimit({
 app.use(cors({ origin: config.NODE_ENV === "production" ? config.FRONTEND_URL : true, credentials: true }));
 app.use(apiLimiter);
 app.use(helmet());
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ limit: config.MAX_PAYLOAD_SIZE || "2mb" }));
+app.use(express.urlencoded({ extended: false, limit: config.MAX_PAYLOAD_SIZE || "2mb" }));
 app.use(mongoSanitize());
 app.use(xssClean());
 app.use(compression());

@@ -1,0 +1,122 @@
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: runnel_mongodb_prod
+    restart: unless-stopped
+    # Database port remains strictly internal to the container network in production.
+    # No host port mapping prevents external access.
+    expose:
+      - "27017"
+    volumes:
+      - mongodb_prod_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - runnel_prod_net
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: runnel_redis_prod
+    restart: unless-stopped
+    # Redis port remains strictly internal to the container network in production.
+    expose:
+      - "6379"
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - runnel_prod_net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: runnel_backend_prod
+    restart: unless-stopped
+    expose:
+      - "5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - MONGO_URI=${MONGO_URI:-mongodb://mongodb:27017/runnel}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - FRONTEND_URL=${FRONTEND_URL:?FRONTEND_URL must be set to the external HTTPS domain}
+      - PUBLIC_API_URL=${PUBLIC_API_URL:-${FRONTEND_URL}}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set for production release (min 32 chars)}
+      - JWT_ACCESS_EXPIRES_IN=${JWT_ACCESS_EXPIRES_IN:-15m}
+      - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN:-7d}
+      - ENABLE_DEMO_HANDLERS=false
+      - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-900000}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-1000}
+      - EXECUTION_RATE_LIMIT_WINDOW_MS=${EXECUTION_RATE_LIMIT_WINDOW_MS:-60000}
+      - EXECUTION_RATE_LIMIT_MAX=${EXECUTION_RATE_LIMIT_MAX:-60}
+      - MAX_CONCURRENT_EXECUTIONS_PER_USER=${MAX_CONCURRENT_EXECUTIONS_PER_USER:-25}
+      - MAX_PAYLOAD_SIZE=${MAX_PAYLOAD_SIZE:-2mb}
+      - WEBHOOK_REQUEST_TIMEOUT_MS=${WEBHOOK_REQUEST_TIMEOUT_MS:-10000}
+      - WEBHOOK_CONNECT_TIMEOUT_MS=${WEBHOOK_CONNECT_TIMEOUT_MS:-5000}
+      - WEBHOOK_MAX_REDIRECTS=${WEBHOOK_MAX_REDIRECTS:-3}
+      - WEBHOOK_MAX_RESPONSE_BYTES=${WEBHOOK_MAX_RESPONSE_BYTES:-1048576}
+      - RECOVERY_ENABLED=true
+      - RECOVERY_INTERVAL_MS=60000
+      - RECOVERY_STALE_THRESHOLD_MS=300000
+      - RECOVERY_LOCK_TTL_MS=30000
+      - RECOVERY_BATCH_SIZE=50
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/health/live',r=>{process.exit(r.statusCode===200?0:1)})"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - runnel_prod_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: runnel_frontend_prod
+    restart: unless-stopped
+    expose:
+      - "80"
+    depends_on:
+      - backend
+    networks:
+      - runnel_prod_net
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: runnel_nginx_prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - certbot_certs:/etc/letsencrypt:ro
+      - certbot_challenge:/var/www/certbot:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - runnel_prod_net
+
+networks:
+  runnel_prod_net:
+    driver: bridge
+
+volumes:
+  mongodb_prod_data:
+  redis_prod_data:
+  certbot_certs:
+  certbot_challenge:

@@ -36,11 +36,19 @@ const dnsPromises = require("node:dns/promises");
 const net = require("node:net");
 const ipaddr = require("ipaddr.js");
 
-const MAX_RESPONSE_BYTES = 1024 * 1024; // 1 MB
-const MAX_REDIRECTS = 3;
-const DEFAULT_TIMEOUT_MS = 10000;
+let envConfig = {};
+try {
+  envConfig = require("../config/env");
+} catch {
+  // fallback if config/env cannot be resolved
+}
+
+const MAX_RESPONSE_BYTES = envConfig.WEBHOOK_MAX_RESPONSE_BYTES || 1024 * 1024; // 1 MB
+const MAX_REDIRECTS = envConfig.WEBHOOK_MAX_REDIRECTS !== undefined ? envConfig.WEBHOOK_MAX_REDIRECTS : 3;
+const DEFAULT_TIMEOUT_MS = envConfig.WEBHOOK_REQUEST_TIMEOUT_MS || 10000;
 const MAX_TIMEOUT_MS = 30000;
 const MIN_TIMEOUT_MS = 500;
+
 
 // Headers forbidden from caller modification
 const RESTRICTED_HEADERS = new Set([

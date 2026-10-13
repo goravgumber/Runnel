@@ -34,6 +34,14 @@ const envSchema = z
     RECOVERY_STALE_THRESHOLD_MS: z.coerce.number().int().positive().default(300000),
     RECOVERY_LOCK_TTL_MS: z.coerce.number().int().positive().default(30000),
     RECOVERY_BATCH_SIZE: z.coerce.number().int().positive().default(50),
+    EXECUTION_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
+    EXECUTION_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
+    MAX_CONCURRENT_EXECUTIONS_PER_USER: z.coerce.number().int().positive().default(25),
+    MAX_PAYLOAD_SIZE: z.string().default("2mb"),
+    WEBHOOK_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+    WEBHOOK_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+    WEBHOOK_MAX_REDIRECTS: z.coerce.number().int().positive().default(3),
+    WEBHOOK_MAX_RESPONSE_BYTES: z.coerce.number().int().positive().default(1048576),
   })
   .superRefine((data, ctx) => {
     // In production, reject weak, placeholder, or default development secrets

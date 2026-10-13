@@ -26,6 +26,15 @@ const validateSubmit = [
     .optional()
     .isInt({ min: 1, max: 10 }).withMessage("maxAttempts must be an integer between 1 and 10"),
 
+  body("input")
+    .optional()
+    .custom((val) => {
+      if (val !== undefined && JSON.stringify(val).length > 256 * 1024) {
+        throw new Error("input payload exceeds maximum allowed size (256 KB)");
+      }
+      return true;
+    }),
+
   body("idempotencyKey")
     .optional()
     .isString()

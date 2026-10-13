@@ -122,6 +122,19 @@ const submitExecution = async (req, res) => {
     }
   }
 
+  // ── Concurrency quota check ─────────────────────────────────────────
+  const activeCount = await Execution.countDocuments({
+    userId,
+    status: { $in: ["pending", "running", "retrying"] },
+  });
+  if (activeCount >= (config.MAX_CONCURRENT_EXECUTIONS_PER_USER || 25)) {
+    throw new AppError(
+      `User concurrent execution quota reached (max ${config.MAX_CONCURRENT_EXECUTIONS_PER_USER || 25} active tasks). Please wait for active executions to complete or cancel existing work.`,
+      429,
+      "CONCURRENT_QUOTA_EXCEEDED"
+    );
+  }
+
   // ── Create record ──────────────────────────────────────────────────
   const exec = await Execution.create({
     userId,

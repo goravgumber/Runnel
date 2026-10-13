@@ -2,15 +2,25 @@ const rateLimit = require("express-rate-limit");
 const RedisStore = require("rate-limit-redis").default;
 const redisClient = require("../config/redis");
 
-const createLimiter = (limit, prefix) => {
+const config = require("../config/env");
+
+const createLimiter = (options) => {
   if (process.env.NODE_ENV === "test") {
     return (_req, _res, next) => next();
   }
+  const opts = typeof options === "number" ? { limit: options } : options;
+  const limit = opts.limit;
+  const prefix = opts.prefix || "rate-limit:";
+  const windowMs = opts.windowMs || 15 * 60 * 1000;
+  const message = opts.message || "Too many requests. Please wait before trying again.";
+  const keyGenerator = opts.keyGenerator;
+
   return rateLimit({
-    windowMs: 15 * 60 * 1000,
+    windowMs,
     limit,
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: keyGenerator || undefined,
     store:
       redisClient && typeof redisClient.call === "function"
         ? new RedisStore({
@@ -23,18 +33,39 @@ const createLimiter = (limit, prefix) => {
         success: false,
         error: {
           code: "TOO_MANY_REQUESTS",
-          message: "Too many authentication attempts. Please wait 15 minutes before trying again.",
+          message,
         },
-        message: "Too many authentication attempts. Please wait 15 minutes before trying again.",
+        message,
       });
     },
   });
 };
 
-const loginLimiter = createLimiter(50, "rate-limit:login:");
-const registerLimiter = createLimiter(100, "rate-limit:register:");
+const loginLimiter = createLimiter({
+  limit: 50,
+  prefix: "rate-limit:login:",
+  windowMs: 15 * 60 * 1000,
+  message: "Too many authentication attempts. Please wait 15 minutes before trying again.",
+});
+
+const registerLimiter = createLimiter({
+  limit: 100,
+  prefix: "rate-limit:register:",
+  windowMs: 15 * 60 * 1000,
+  message: "Too many account registrations from this IP. Please wait before trying again.",
+});
+
+const executionSubmitLimiter = createLimiter({
+  limit: config.EXECUTION_RATE_LIMIT_MAX || 60,
+  prefix: "rate-limit:exec-submit:",
+  windowMs: config.EXECUTION_RATE_LIMIT_WINDOW_MS || 60000,
+  message: "Execution submission quota exceeded. Please slow down your request rate.",
+  keyGenerator: (req) => req.user?.id || req.ip,
+});
 
 module.exports = {
   loginLimiter,
   registerLimiter,
+  executionSubmitLimiter,
 };
+

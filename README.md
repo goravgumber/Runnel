@@ -145,20 +145,31 @@ Visit **`http://localhost:5173`** in your browser.
 
 ---
 
-## 6. Docker Deployment
+### 6. Docker Deployment
 
-Deploy the entire production stack using Docker Compose:
+Deploy the container stack using Docker Compose:
 
+**Development & Local Staging:**
 ```bash
 docker compose up -d
 ```
-
 Services started:
-- `runnel_mongodb` (Port 27017)
-- `runnel_redis` (Port 6380:6379)
+- `runnel_mongodb` (Port 27017 mapped to loopback)
+- `runnel_redis` (Port 6380 mapped to loopback)
 - `runnel_backend` (Port 5000)
 - `runnel_frontend` (Port 8080)
-- `runnel_nginx` (Port 80)
+- `runnel_nginx` (Port 80 HTTP reverse proxy)
+
+**Production Deployment (External Domain & TLS):**
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+```
+Services started:
+- `runnel_nginx_prod` (Ports 80 HTTP & 443 HTTPS with TLS termination, HSTS, and CSP)
+- `runnel_frontend_prod` (Port 80 internal)
+- `runnel_backend_prod` (Port 5000 internal, non-root user `node`)
+- `runnel_mongodb_prod` (Port 27017 strictly private to container network)
+- `runnel_redis_prod` (Port 6379 strictly private to container network)
 
 ---
 
@@ -180,18 +191,25 @@ All protected endpoints require an `Authorization: Bearer <JWT_ACCESS_TOKEN>` he
   ```json
   {
     "name": "Sync Stripe Webhook",
-    "type": "echo",
-    "payload": { "eventId": "evt_1002" },
+    "type": "webhook",
+    "payload": {
+      "url": "https://api.example.com/webhooks/orders",
+      "method": "POST",
+      "headers": { "Content-Type": "application/json" },
+      "body": { "eventId": "evt_1002", "orderId": "ord_9901" }
+    },
     "maxAttempts": 3,
     "idempotencyKey": "webhook_evt_1002",
     "tags": ["billing", "stripe"]
   }
   ```
+  *(Note: `type: "webhook"` is the primary production handler; `echo` and `fail` are development demo handlers disabled by default in production).*
 - `GET /api/v1/executions` — Paginated list with filters (`status`, `search`, `page`, `limit`).
 - `GET /api/v1/executions/:id` — Full execution details, input/output, and attempt history.
 - `POST /api/v1/executions/:id/retry` — Manually retry a failed or cancelled execution.
 - `POST /api/v1/executions/:id/cancel` — Cancel a pending or running execution.
 - `GET /api/v1/executions/stats` — Aggregated counts by status (`total`, `pending`, `running`, `completed`, `failed`, `retrying`, `cancelled`).
+
 
 ### User & Policy Settings
 - `GET /api/v1/users/settings` — Get current user execution queue policies.
