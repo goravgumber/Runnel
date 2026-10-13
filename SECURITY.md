@@ -20,7 +20,7 @@ Only the latest release and the current `main` branch receive active security pa
 If you discover a security vulnerability in Runnel, please report it privately. **Do not disclose vulnerabilities publicly in GitHub issues or discussions.**
 
 ### Contact Process
-1. Email your report to **security@runnel.dev** (or open a private GitHub Security Advisory).
+1. Email your report to **goravgumberg@gmail.com** (or open a private GitHub Security Advisory).
 2. Include:
    - Description of the vulnerability.
    - Minimal reproducible proof of concept (PoC).
