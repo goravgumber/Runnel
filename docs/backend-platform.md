@@ -1,46 +1,79 @@
-# Backend Platform Architecture
+# Runnel — Backend Platform Architecture
 
-Adaptive Ecosystem Simulator is structured as a distributed backend portfolio project:
+Runnel is an observable recovery inbox and execution engine for asynchronous work and webhook dispatching.
 
-- Express API with versioned routes under `/api/v1`
-- MongoDB persistence through Mongoose models and repository classes
-- Redis-backed rate limiting, token revocation, cache, and BullMQ queues
-- Socket.IO realtime transport with JWT authentication
-- Python ML microservice for training and inference
-- Docker Compose orchestration with frontend, backend, ML service, MongoDB, Redis, and Nginx
+---
 
-## Core Request Flow
+## 1. System Architecture
 
-1. Client authenticates through `/api/v1/auth/login`.
-2. Backend returns an access token and refresh token.
-3. Protected API and websocket requests validate JWT claims.
-4. Long-running work is sent to BullMQ instead of blocking HTTP requests.
-5. Workers emit realtime updates through Socket.IO where appropriate.
-6. Operational state is exposed through health, readiness, queue, metrics, and admin endpoints.
+```text
+Client Applications (HTTP / WebSocket)
+        │
+        ▼
+Express API Gateway (/api/v1)
+        ├── Trace & Request Logging (Winston, Correlation IDs)
+        ├── Auth Middleware (JWT Access/Refresh, Token Revocation in Redis)
+        ├── Rate Limiting (Redis-backed per-IP and per-user submission quotas)
+        │
+        ├── Execution Lifecycle Engine
+        │       ├── Idempotency Verification & Payload Hashing
+        │       ├── Status State Machine (pending → running → completed/failed/retrying/cancelled)
+        │       └── MongoDB Persistence (Executions, Attempts, Users)
+        │
+        ├── BullMQ Queue Dispatcher (Queue: runnel-executions, Concurrency: 4)
+        │       └── Redis Broker
+        │
+        ├── BullMQ Execution Worker
+        │       ├── Handler Registry ('webhook', 'echo', 'fail')
+        │       ├── Outbound Webhook Client (SSRF validation, DNS pinning, 1 MB limit)
+        │       ├── ExecutionAttempt Recording (Timestamps, Durations, Errors)
+        │       └── Real-Time Socket.IO Broadcaster
+        │
+        └── Automated Stuck-Execution Recovery Service
+                ├── Periodic Reconciler (Default: every 60s, stale threshold: 5m)
+                ├── Redis Distributed Mutex Lock (Multi-replica safe)
+                └── BullMQ Queue State Reconciliation & Safe Re-queuing
+```
 
-## Backend Features
+---
 
-- `GET /health/live` for container liveness.
-- `GET /health/ready` for dependency readiness.
-- `POST /api/v1/auth/refresh` for refresh token rotation.
-- `POST /api/v1/auth/logout` and `/logout-all` for session revocation.
-- `GET /api/v1/admin/overview` for platform summary.
-- `GET /api/v1/admin/users` for admin user inventory.
-- `GET /api/v1/queues` for BullMQ queue counts.
-- `POST /api/v1/queues/background-tasks/jobs` to enqueue approved jobs.
+## 2. Core Operational Modules
 
-## Scalability Value
+### A. Execution Lifecycle & Inbox
+- **REST Endpoints (`/api/v1/executions`)**: Paginated listing, full detail view with attempt timeline, status aggregations (`/executions/stats`), manual retry with atomic concurrency guard, and execution cancellation.
+- **Per-User Isolation**: Every database query strictly filters on `userId`. Cross-user access returns `404 Not Found` without information leakage.
+- **Idempotency Guard**: Per-user `idempotencyKey` computes a deterministic SHA-256 hash of input payloads. Matching payloads return existing records; altered payloads reject with `409 Conflict`.
+- **Database Index Optimization**:
+  - `idx_execution_user_created` (`{ userId: 1, createdAt: -1 }`): Eliminates in-memory sorting for default inbox views.
+  - `idx_execution_inbox` (`{ userId: 1, status: 1, createdAt: -1 }`): Optimizes status-filtered tabs.
+  - `idx_attempt_exec_number` (`{ executionId: 1, attemptNumber: 1 }`): Powers attempt history ordering and lookup.
 
-The API is kept responsive by moving expensive tasks to queues. Redis centralizes shared state for throttling, cache, and token revocation. Versioned APIs make future client migrations possible without breaking older frontend calls.
+### B. Outbound Webhook Client & SSRF Boundary
+Outbound webhooks executed by background workers enforce defense-in-depth protections:
+1. **Destination Policy**: All destination IP addresses are validated using `ipaddr.js`. Rejects loopback (`127.0.0.0/8`, `::1`), RFC 1918 private networks, link-local, multicast, carrier-grade NAT (`100.64.0.0/10`), and unspecified addresses.
+2. **Cloud Metadata Defense**: Explicitly blocks requests targeting cloud metadata addresses (`169.254.169.254`, `fd00:ec2::254`, `metadata.google.internal`).
+3. **DNS-Pinning**: Pre-resolves DNS records and binds custom HTTP sockets directly to the verified IP, immunizing against Time-of-Check to Time-of-Use (TOCTOU) DNS rebinding attacks.
+4. **Controlled Redirects**: Manual redirect inspection up to 3 hops; every redirect target is re-validated through the full destination policy.
+5. **Bounded Consumption**: Connect timeout (5s), request timeout (10s), and maximum response body limit (1 MB). Responses exceeding 1 MB are safely truncated.
+6. **Credential Redaction**: Redacts sensitive headers (`Authorization`, `Cookie`, API keys) from persisted attempt outputs.
 
-## Resume Value
+### C. Automated Stuck-Execution Recovery
+- **Reconciliation Engine**: Periodically queries executions lingering in `running` status beyond `RECOVERY_STALE_THRESHOLD_MS`.
+- **Distributed Mutex**: Uses Redis distributed locking (`runnel:recovery:lock`) with automatic expiry to coordinate across multiple API/worker replicas.
+- **State Reconciliation**: Inspects live BullMQ job states before modifying database records:
+  - If BullMQ job is active: Preserves execution.
+  - If BullMQ job is delayed (backoff retry): Preserves execution.
+  - If BullMQ job is waiting after worker restart: Transitions status to `retrying`.
+  - If BullMQ job is missing (worker crash/interruption): Re-enqueues job if retry budget remains; marks `failed` with reason `WORKER_INTERRUPTED` if budget exhausted.
 
-This project now demonstrates practical backend concerns:
+### D. Authentication & Session Security
+- **Dual-Token Architecture**: 15-minute JWT access tokens and 7-day refresh tokens.
+- **Token Blacklisting**: Revoked tokens stored in Redis with TTL matching token expiry.
+- **Session Revocation**: `/api/v1/auth/logout` revokes current session; `/api/v1/auth/logout-all` revokes all active refresh tokens for the user.
 
-- API versioning and compatibility strategy
-- JWT access and refresh token lifecycle
-- RBAC and admin operations
-- Background jobs and queue observability
-- Health/readiness probes for cloud deployments
-- Dockerized service orchestration
-- CI checks for backend, frontend, and Docker configuration
+---
+
+## 3. Production Deployment Topologies
+
+- **Docker Compose (Default / Local Staging)**: Orchestrates API backend, React frontend, Nginx reverse proxy, MongoDB 6.0, and Redis 7.0 Alpine.
+- **Docker Compose Production (`docker-compose.prod.yml`)**: Restricts MongoDB and Redis ports to the private container network, enables TLS termination and security headers (CSP, HSTS) in Nginx, and enforces strict production environment validation.

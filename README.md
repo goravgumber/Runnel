@@ -100,10 +100,10 @@ git clone https://github.com/goravgumber/Runnel.git
 cd Runnel
 
 # Install backend dependencies
-cd backend && npm install
+cd backend && npm ci
 
 # Install frontend dependencies
-cd ../frontend && npm install
+cd ../frontend && npm ci
 ```
 
 ### 2. Configure Environment
@@ -192,7 +192,7 @@ All protected endpoints require an `Authorization: Bearer <JWT_ACCESS_TOKEN>` he
   {
     "name": "Sync Stripe Webhook",
     "type": "webhook",
-    "payload": {
+    "input": {
       "url": "https://api.example.com/webhooks/orders",
       "method": "POST",
       "headers": { "Content-Type": "application/json" },
@@ -224,7 +224,7 @@ All protected endpoints require an `Authorization: Bearer <JWT_ACCESS_TOKEN>` he
 Runnel includes a 100% hermetic automated test suite requiring no manual database setup:
 
 ```bash
-# Run all backend unit, integration, and security tests (122 tests across 24 suites)
+# Run all backend unit, integration, and security tests (125 tests across 25 suites)
 cd backend
 NODE_ENV=test npm test
 
@@ -242,6 +242,7 @@ npm run build
 - **Worker Suite:** Handler registry, execution job lifecycles, error recording, attempt logging.
 - **Webhook Security Suite (46 Tests):** Canonical URL parsing, non-public IP ranges (IPv4/IPv6 private, loopback, link-local, multicast, carrier-grade NAT), cloud metadata endpoints (169.254.169.254, fd00:ec2::254, metadata.google.internal), DNS-rebinding immunity via pinned socket lookup, redirect validation, header sanitization, credential redaction, and stream bounding.
 - **Reliable Stuck-Execution Recovery Suite (10 Tests):** Automated reconciliation pass, active BullMQ job preservation, delayed backoff retry preservation, worker interruption sync, concurrent race-condition safety, distributed locking across replicas, retry-limit exhaustion, database outage immunity, non-retryable execution flagging, and attempt history preservation.
+- **Database Migration & Index Suite (3 Tests):** Idempotent compound index verification, redundant index pruning, and query-pattern compatibility.
 - **Envelope & Utility Suite:** Role-based access control, standardized API envelopes, health readiness checks.
 
 ---

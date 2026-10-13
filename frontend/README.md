@@ -1,12 +1,64 @@
-# React + Vite
+# Runnel — Frontend Application
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The modern, responsive web console for **Runnel — Recovery Inbox for Asynchronous Work**.
 
-Currently, two official plugins are available:
+Built with React 19 and Vite 7, providing real-time visibility into execution lifecycles, attempt timelines, failure diagnostics, and safe retry controls.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## Expanding the ESLint configuration
+## 1. Features & Design Identity
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- **Execution Inbox**: Searchable, filterable log of background jobs with status tags, duration metrics, and attempt counts.
+- **Attempt Timeline Drawer**: Detailed inspection of individual attempts with timestamps, durations, BullMQ worker metadata, structured error codes, and stack traces.
+- **Manual Retry Modal**: Safe confirmation dialogs with retry policy bounds.
+- **Real-Time Live Updates**: Authenticated Socket.IO connection streams instant updates when background workers process executions.
+- **Stitch Design System**:
+  - Warm Ivory Canvas: `#FBF9F3`
+  - Surface White: `#FFFFFF`
+  - Forest Green Accent: `#1B4332`
+  - Terracotta Alert: `#B63B32`
+  - Charcoal Typography: `#1C1917`
+- **Independent Viewport Scrolling**: Fixed sidebar navigation with independently scrolling execution logs on desktop, plus a responsive mobile drawer navigation for small viewports.
+
+---
+
+## 2. Technology Stack
+
+- **Framework**: React 19 + Vite 7
+- **Routing**: React Router 7
+- **Styling**: Tailwind CSS
+- **Icons**: Lucide React
+- **Animations**: Framer Motion
+- **WebSockets**: Socket.IO Client 4
+
+---
+
+## 3. Development Scripts
+
+```bash
+# Install dependencies
+npm ci
+
+# Start local development server (http://localhost:5173)
+npm run dev
+
+# Run ESLint validation
+npm run lint
+
+# Compile production bundle to dist/
+npm run build
+
+# Preview production build locally
+npm run preview
+```
+
+---
+
+## 4. Environment Configuration
+
+Create a `.env` file in `frontend/` (see `.env.example`):
+
+```env
+# Optional: Override backend API URL (defaults to Vite dev proxy at /api/v1)
+VITE_API_URL=http://localhost:5000/api/v1
+```

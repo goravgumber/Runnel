@@ -58,7 +58,7 @@ Runnel background workers execute asynchronous HTTP webhooks. To prevent Server-
 - **Payload Limits:** Incoming JSON request payloads are bounded to 2 MB (configurable via `MAX_PAYLOAD_SIZE`). Execution `input` bodies are bounded to 256 KB.
 
 ### 4. Authentication & Secret Management
-- Passwords hashed using `bcrypt` (work factor 10).
+- Passwords hashed using `bcryptjs` (salt work factor 12).
 - Dual-token session strategy: 15-minute JWT access tokens and 7-day refresh tokens stored and tracked in Redis.
 - Atomic refresh token rotation with automated reuse detection and family revocation.
 - Dedicated `/api/v1/auth/logout` revokes active refresh tokens immediately.
