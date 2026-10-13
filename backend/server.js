@@ -85,6 +85,7 @@ const configureRoutes = () => {
   apiRouter.use("/executions", executionsRoutes);
   apiRouter.use("/queues", queuesRoutes);
   apiRouter.use("/admin", adminRoutes);
+  apiRouter.use("/health", healthRoutes);
 
   app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
   app.use("/api/v1", apiRouter);

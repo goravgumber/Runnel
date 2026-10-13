@@ -20,6 +20,7 @@ import {
 import { io } from "socket.io-client";
 import { useAuth } from "../context/AuthContext";
 import { executionsAPI } from "../services/executionsAPI";
+import { healthAPI } from "../services/api";
 import StatCard from "../components/ui/StatCard";
 import StatusBadge from "../components/ui/StatusBadge";
 import Button from "../components/ui/Button";
@@ -41,6 +42,7 @@ export default function Dashboard() {
     cancelled: 0,
   });
   const [recentExecutions, setRecentExecutions] = useState([]);
+  const [healthData, setHealthData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [lastEvent, setLastEvent] = useState(null);
@@ -50,16 +52,18 @@ export default function Dashboard() {
 
   const socketRef = useRef(null);
 
-  // Load dashboard data
+  // Load dashboard data with real executions and measured telemetry
   const loadDashboardData = useCallback(async () => {
     try {
-      const [statsRes, listRes] = await Promise.all([
+      const [statsRes, listRes, healthRes] = await Promise.all([
         executionsAPI.stats(),
         executionsAPI.list({ limit: 10, page: 1 }),
+        healthAPI.all().catch(() => ({ data: null })),
       ]);
 
-      if (statsRes.data) setStats(statsRes.data);
-      if (listRes.data) setRecentExecutions(listRes.data.executions || []);
+      if (statsRes?.data) setStats(statsRes.data);
+      if (listRes?.data) setRecentExecutions(listRes.data.executions || []);
+      if (healthRes?.data) setHealthData(healthRes.data);
     } catch (_err) {
       setErrorMsg("Failed to synchronize dashboard metrics.");
     } finally {
@@ -138,13 +142,16 @@ export default function Dashboard() {
     }
   };
 
-  // Derived metrics
+  // Derived metrics from authenticated database records
   const activeCount = (stats.running || 0) + (stats.pending || 0);
   const recoveryCount = (stats.failed || 0) + (stats.retrying || 0);
+  const eligibleCompleted = stats.completed || 0;
+  const eligibleFailed = stats.failed || 0;
+  const finalizedDenominator = eligibleCompleted + eligibleFailed;
   const successRate =
-    stats.total > 0
-      ? Math.round(((stats.completed || 0) / stats.total) * 100)
-      : 100;
+    finalizedDenominator > 0
+      ? Math.round((eligibleCompleted / finalizedDenominator) * 100)
+      : null;
 
   const filteredExecutions = recentExecutions.filter((item) => {
     if (filter === "recovery") return item.status === "failed" || item.status === "retrying";
@@ -235,9 +242,19 @@ export default function Dashboard() {
           title="Completed Safely"
           value={stats.completed}
           icon={CheckCircle2}
-          badge={`${successRate}% Success`}
-          badgeVariant="success"
-          subtext="Successfully finalized execution lifecycle"
+          badge={successRate !== null ? `${successRate}% Success` : "Unavailable"}
+          badgeVariant={
+            successRate !== null
+              ? successRate >= 80
+                ? "success"
+                : "warning"
+              : "neutral"
+          }
+          subtext={
+            finalizedDenominator > 0
+              ? `${stats.completed || 0} of ${finalizedDenominator} finalized executions completed`
+              : "No completed or failed records to evaluate"
+          }
         />
       </div>
 
@@ -282,7 +299,7 @@ export default function Dashboard() {
               <div className="bg-canvas-well border border-stone-border rounded-lg p-3 overflow-x-auto text-charcoal">
                 <code>
                   curl -X POST http://localhost:5000/api/v1/executions \<br />
-                  &nbsp;&nbsp;-H &quot;Authorization: Bearer {token ? `${token.slice(0, 16)}...` : "&lt;JWT_TOKEN&gt;"}&quot; \<br />
+                  &nbsp;&nbsp;-H &quot;Authorization: Bearer &lt;YOUR_API_TOKEN&gt;&quot; \<br />
                   &nbsp;&nbsp;-H &quot;Content-Type: application/json&quot; \<br />
                   &nbsp;&nbsp;-d &apos;{JSON.stringify({ name: "Daily Invoice Batch", type: "echo", input: { count: 120 } })}&apos;
                 </code>
@@ -437,11 +454,16 @@ export default function Dashboard() {
         <div className="space-y-6">
           {/* Quick Dispatch Card */}
           <div className="bg-surface border border-stone-border rounded-2xl p-5 shadow-card space-y-4">
-            <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-charcoal-muted">
-              <Terminal className="w-4 h-4 text-forest" /> Quick Task Dispatcher
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-charcoal-muted">
+                <Terminal className="w-4 h-4 text-forest" /> Test &amp; Demo Dispatcher
+              </div>
+              <span className="text-2xs font-mono font-semibold px-2 py-0.5 rounded-full bg-forest-ghost text-forest border border-forest-border">
+                Demo Utility
+              </span>
             </div>
             <p className="text-xs text-charcoal-secondary leading-relaxed">
-              Dispatch predefined task patterns immediately to test worker processing, telemetry streams, and recovery queues.
+              Dispatches actual background tasks to the local BullMQ worker to test queue ingestion, lifecycle tracking, and error recovery.
             </p>
 
             <div className="grid grid-cols-2 gap-2 pt-1">
@@ -452,7 +474,7 @@ export default function Dashboard() {
                 loading={quickSubmitting}
                 className="w-full text-xs"
               >
-                + Echo Task
+                + Echo Task (Demo)
               </Button>
 
               <Button
@@ -462,7 +484,7 @@ export default function Dashboard() {
                 loading={quickSubmitting}
                 className="w-full text-xs text-terracotta border-terracotta/30"
               >
-                + Fail Task
+                + Fail Task (Demo)
               </Button>
             </div>
 
@@ -477,52 +499,93 @@ export default function Dashboard() {
             </Button>
           </div>
 
-          {/* Operational Health & Worker Status */}
-          <div className="bg-surface border border-stone-border rounded-2xl p-5 shadow-card space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-mono uppercase tracking-wider text-charcoal-muted">
-                Worker Infrastructure
-              </span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono bg-[rgba(47,125,90,0.08)] text-[#2F7D5A] border border-[rgba(47,125,90,0.25)]">
-                ● ACTIVE
-              </span>
-            </div>
+          {/* Operational Health & Worker Telemetry sourced from /health */}
+          {(() => {
+            const queueInfo = healthData?.services?.queue || healthData?.data?.services?.queue;
+            const redisInfo = healthData?.services?.redis || healthData?.data?.services?.redis;
+            const mongoInfo = healthData?.services?.mongodb || healthData?.data?.services?.mongodb;
+            const isOperational = queueInfo?.status === "operational" && redisInfo?.status === "connected";
 
-            <div className="space-y-2 text-xs font-mono">
-              <div className="flex justify-between py-1.5 border-b border-stone-border/60">
-                <span className="text-charcoal-secondary">Queue Engine</span>
-                <span className="text-charcoal font-semibold">BullMQ / Redis</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-stone-border/60">
-                <span className="text-charcoal-secondary">Queue Name</span>
-                <span className="text-charcoal font-semibold">runnel-executions</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-stone-border/60">
-                <span className="text-charcoal-secondary">Concurrency Cap</span>
-                <span className="text-charcoal font-semibold">4 Workers</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-stone-border/60">
-                <span className="text-charcoal-secondary">Retry Backoff</span>
-                <span className="text-charcoal font-semibold">Exponential (5s)</span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-charcoal-secondary">Max Attempt Limit</span>
-                <span className="text-charcoal font-semibold">Bounded (2 × Max)</span>
-              </div>
-            </div>
+            return (
+              <div className="bg-surface border border-stone-border rounded-2xl p-5 shadow-card space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono uppercase tracking-wider text-charcoal-muted">
+                    Worker Infrastructure
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-2xs font-mono font-semibold ${
+                      isOperational
+                        ? "bg-forest-ghost text-forest border border-forest-border"
+                        : queueInfo?.status
+                        ? "bg-amber-50 text-amber-700 border border-amber-200"
+                        : "bg-canvas-well text-charcoal-muted border border-stone-border"
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        isOperational ? "bg-forest animate-pulse" : "bg-charcoal-muted"
+                      }`}
+                    />
+                    {queueInfo?.status ? queueInfo.status.toUpperCase() : "CHECKING TELEMETRY"}
+                  </span>
+                </div>
 
-            {lastEvent && (
-              <div className="mt-3 p-2.5 rounded-lg bg-canvas-well border border-stone-border text-2xs font-mono">
-                <div className="flex items-center justify-between text-charcoal-muted mb-1">
-                  <span>LAST WS TRANSITION</span>
-                  <span>{lastEvent.timestamp}</span>
+                <div className="space-y-2 text-xs font-mono">
+                  <div className="flex justify-between py-1.5 border-b border-stone-border/60">
+                    <span className="text-charcoal-secondary">Queue Engine</span>
+                    <span className="text-charcoal font-semibold">BullMQ (Redis Broker)</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 border-b border-stone-border/60">
+                    <span className="text-charcoal-secondary">Queue Name</span>
+                    <span className="text-charcoal font-semibold">
+                      {queueInfo?.name || "runnel-executions"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1.5 border-b border-stone-border/60">
+                    <span className="text-charcoal-secondary">Queue Load</span>
+                    <span className="text-charcoal font-semibold">
+                      {queueInfo?.counts
+                        ? `${queueInfo.counts.active || 0} active, ${queueInfo.counts.waiting || 0} waiting`
+                        : "0 active, 0 waiting"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1.5 border-b border-stone-border/60">
+                    <span className="text-charcoal-secondary">Redis Broker</span>
+                    <span className="text-charcoal font-semibold">
+                      {redisInfo?.status
+                        ? `${redisInfo.status.toUpperCase()}${redisInfo.latency_ms != null ? ` (${redisInfo.latency_ms}ms)` : ""}`
+                        : "Unavailable"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1.5 border-b border-stone-border/60">
+                    <span className="text-charcoal-secondary">Database Connection</span>
+                    <span className="text-charcoal font-semibold">
+                      {mongoInfo?.status
+                        ? `${mongoInfo.status.toUpperCase()}${mongoInfo.latency_ms != null ? ` (${mongoInfo.latency_ms}ms)` : ""}`
+                        : "Unavailable"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1.5">
+                    <span className="text-charcoal-secondary">Retry Policy</span>
+                    <span className="text-charcoal font-semibold">Exponential Backoff (5s base)</span>
+                  </div>
                 </div>
-                <div className="text-charcoal truncate">
-                  ID: {lastEvent.executionId} → <span className="font-semibold uppercase">{lastEvent.status}</span>
-                </div>
+
+                {lastEvent && (
+                  <div className="mt-3 p-2.5 rounded-lg bg-canvas-well border border-stone-border text-2xs font-mono">
+                    <div className="flex items-center justify-between text-charcoal-muted mb-1">
+                      <span>LAST WS TRANSITION</span>
+                      <span>{lastEvent.timestamp}</span>
+                    </div>
+                    <div className="text-charcoal truncate">
+                      ID: {lastEvent.executionId} →{" "}
+                      <span className="font-semibold uppercase">{lastEvent.status}</span>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })()}
         </div>
       </div>
     </div>

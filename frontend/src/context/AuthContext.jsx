@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
-import { toApiPath, unwrapApiResponse } from "../services/api";
+import { toApiPath, unwrapApiResponse, getFreshToken } from "../services/api";
 
 const AuthContext = createContext();
 
@@ -19,34 +19,32 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem("refreshToken");
   }, []);
 
-  const refreshAccessToken = useCallback(async (tokenOverride) => {
-    const activeRefreshToken = tokenOverride || refreshToken || localStorage.getItem("refreshToken");
-    if (!activeRefreshToken) {
-      throw new Error("No refresh token available");
-    }
-
-    const res = await fetch(toApiPath("/auth/refresh"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken: activeRefreshToken }),
-    });
-
-    const payload = await res.json().catch(() => null);
-    if (!res.ok) {
+  // Listen for global auth expiry event from API client
+  useEffect(() => {
+    const handleAuthExpired = () => {
       clearAuthData();
-      throw new Error(payload?.error?.message || payload?.message || "Session refresh failed");
+    };
+    window.addEventListener("runnel:auth-expired", handleAuthExpired);
+    return () => window.removeEventListener("runnel:auth-expired", handleAuthExpired);
+  }, [clearAuthData]);
+
+  const refreshAccessToken = useCallback(async () => {
+    const freshToken = await getFreshToken();
+    if (!freshToken) {
+      clearAuthData();
+      throw new Error("Session refresh failed");
     }
 
-    const data = unwrapApiResponse(payload);
-    setUser(data.user);
-    setToken(data.token);
-    setRefreshToken(data.refreshToken);
-    localStorage.setItem("user", JSON.stringify(data.user));
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("refreshToken", data.refreshToken);
+    const savedUser = localStorage.getItem("user");
+    const savedRefreshToken = localStorage.getItem("refreshToken");
+    if (savedUser) {
+      try { setUser(JSON.parse(savedUser)); } catch { /* ignore */ }
+    }
+    setToken(freshToken);
+    if (savedRefreshToken) setRefreshToken(savedRefreshToken);
 
-    return data.token;
-  }, [clearAuthData, refreshToken]);
+    return freshToken;
+  }, [clearAuthData]);
 
   const validateToken = useCallback(async (tokenToValidate) => {
     try {

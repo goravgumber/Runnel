@@ -13,13 +13,80 @@ export const unwrapApiResponse = (payload) => {
   return payload;
 };
 
-async function request(url, options = {}) {
+// Singleton in-flight refresh promise to prevent duplicate concurrent refresh requests
+let refreshPromise = null;
+
+export async function getFreshToken() {
+  if (refreshPromise) return refreshPromise;
+
+  const refreshToken = localStorage.getItem("refreshToken");
+  if (!refreshToken) return null;
+
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch(toApiPath("/auth/refresh"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("refreshToken");
+          localStorage.removeItem("user");
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("runnel:auth-expired"));
+          }
+        }
+        return null;
+      }
+      const data = unwrapApiResponse(payload);
+      if (data?.token) {
+        localStorage.setItem("token", data.token);
+        if (data.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
+        if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
+        return data.token;
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+export async function request(url, options = {}) {
   const token = localStorage.getItem("token");
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   if (token) headers.Authorization = `Bearer ${token}`;
+
   try {
     const res = await fetch(url, { ...options, headers });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+
+    // If access token expired (401) and not already retried, refresh and retry once
+    if (
+      res.status === 401 &&
+      !options._isRetry &&
+      !url.includes("/auth/login") &&
+      !url.includes("/auth/refresh") &&
+      !url.includes("/auth/register") &&
+      !url.includes("/auth/signup")
+    ) {
+      const freshToken = await getFreshToken();
+      if (freshToken) {
+        return request(url, {
+          ...options,
+          _isRetry: true,
+          headers: { ...options.headers, Authorization: `Bearer ${freshToken}` },
+        });
+      }
+    }
+
     if (!res.ok) {
       const errorMsg =
         data?.error?.details?.validationErrors?.[0]?.message ||
@@ -54,9 +121,9 @@ export const authAPI = {
 };
 
 export const healthAPI = {
-  all: () => request(`${BACKEND}/health`),
-  live: () => request(`${BACKEND}/health/live`),
-  ready: () => request(`${BACKEND}/health/ready`),
+  all: () => request(toApiPath("/health")),
+  live: () => request(toApiPath("/health/live")),
+  ready: () => request(toApiPath("/health/ready")),
 };
 
 export const userAPI = {

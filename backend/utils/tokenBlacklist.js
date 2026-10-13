@@ -41,6 +41,36 @@ const isRefreshTokenActive = async (userId, tokenId) => {
   }
 };
 
+const rotateRefreshToken = async (userId, tokenId, successorPayload, graceTtlSeconds = 30) => {
+  if (!redisClient) return false;
+  try {
+    const data = JSON.stringify({ status: "rotated", successor: successorPayload });
+    await redisClient.set(`refresh:${userId}:${tokenId}`, data, "EX", graceTtlSeconds);
+    return true;
+  } catch (error) {
+    logger.error("Failed to mark refresh token as rotated: %s", error.message);
+    return false;
+  }
+};
+
+const getRefreshTokenStatus = async (userId, tokenId) => {
+  if (!redisClient) return { status: "active" };
+  try {
+    const raw = await redisClient.get(`refresh:${userId}:${tokenId}`);
+    if (!raw) return { status: "inactive" };
+    if (raw === "active") return { status: "active" };
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed;
+    } catch {
+      return { status: "inactive" };
+    }
+  } catch (error) {
+    logger.error("Failed to check refresh token status: %s", error.message);
+    return { status: "error" };
+  }
+};
+
 const revokeRefreshToken = async (userId, tokenId) => {
   if (!redisClient) return false;
   try {
@@ -69,6 +99,8 @@ module.exports = {
   isTokenBlacklisted,
   storeRefreshToken,
   isRefreshTokenActive,
+  rotateRefreshToken,
+  getRefreshTokenStatus,
   revokeRefreshToken,
   revokeAllRefreshTokens,
 };

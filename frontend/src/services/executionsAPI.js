@@ -1,34 +1,4 @@
-/**
- * executionsAPI.js
- *
- * Thin HTTP client for the /api/v1/executions endpoints.
- * Reuses the same `request` helper pattern from api.js.
- */
-
-const token = () => localStorage.getItem("token");
-
-async function request(url, options = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
-  const t = token();
-  if (t) headers.Authorization = `Bearer ${t}`;
-
-  try {
-    const res = await fetch(url, { ...options, headers });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      return {
-        data: null,
-        error: data?.error?.message || data?.message || `HTTP ${res.status}`,
-      };
-    }
-    return { data: data?.data ?? data, error: null };
-  } catch (e) {
-    return { data: null, error: e.message };
-  }
-}
+import { request } from "./api";
 
 const base = () => "/api/v1/executions";
 

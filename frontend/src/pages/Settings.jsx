@@ -69,7 +69,7 @@ export default function Settings() {
   };
 
   const curlCommand = `curl -X POST http://localhost:5000/api/v1/executions \\
-  -H "Authorization: Bearer ${token ? (showToken ? token : token.slice(0, 16) + "...") : "YOUR_TOKEN"}" \\
+  -H "Authorization: Bearer ${showToken && token ? token : "<YOUR_API_TOKEN>"}" \\
   -H "Content-Type: application/json" \\
   -d '{
     "name": "Sync customer webhook",

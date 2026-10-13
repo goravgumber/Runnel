@@ -4,7 +4,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Inbox,
@@ -523,6 +523,7 @@ function DetailPanel({ execution, onClose, onRetry, onCancel }) {
 export default function ExecutionInbox() {
   const { id: selectedId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { token } = useAuth();
 
   // ── State ──────────────────────────────────────────────────────────
@@ -538,6 +539,13 @@ export default function ExecutionInbox() {
   const [showSubmit, setShowSubmit] = useState(false);
   const [toast, setToast]   = useState(null);
   const socketRef = useRef(null);
+
+  // Sync ?new=true query param with Submit modal
+  useEffect(() => {
+    if (searchParams.get("new") === "true") {
+      setShowSubmit(true);
+    }
+  }, [searchParams]);
 
   const LIMIT = 20;
 
@@ -643,7 +651,17 @@ export default function ExecutionInbox() {
     loadList({ page: 1, search });
   };
 
+  const handleCloseSubmit = useCallback(() => {
+    setShowSubmit(false);
+    if (searchParams.get("new") === "true") {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("new");
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   const handleSubmitted = () => {
+    handleCloseSubmit();
     loadList({ page: 1 });
     loadStats();
     showToast("Execution submitted successfully!", "ok");
@@ -918,7 +936,7 @@ export default function ExecutionInbox() {
       {/* ── Modals & Panels ──────────────────────────────────── */}
       <AnimatePresence>
         {showSubmit && (
-          <SubmitModal onClose={() => setShowSubmit(false)} onSubmitted={handleSubmitted} />
+          <SubmitModal onClose={handleCloseSubmit} onSubmitted={handleSubmitted} />
         )}
       </AnimatePresence>
 

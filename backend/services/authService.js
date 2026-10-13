@@ -7,6 +7,8 @@ const config = require("../config/env");
 const {
   storeRefreshToken,
   isRefreshTokenActive,
+  rotateRefreshToken,
+  getRefreshTokenStatus,
   revokeRefreshToken,
   revokeAllRefreshTokens,
   blacklistToken,
@@ -148,24 +150,30 @@ class AuthService {
       throw new AppError("Refresh token has been revoked", 401);
     }
 
-    const active = await isRefreshTokenActive(user._id.toString(), decoded.tokenId);
-    if (!active) {
+    const tokenStatus = await getRefreshTokenStatus(user._id.toString(), decoded.tokenId);
+    if (tokenStatus.status === "rotated" && tokenStatus.successor) {
+      return tokenStatus.successor;
+    }
+
+    if (tokenStatus.status !== "active") {
       await revokeAllRefreshTokens(user._id.toString());
       throw new AppError("Refresh token reuse detected", 401);
     }
 
-    await revokeRefreshToken(user._id.toString(), decoded.tokenId);
-
     const accessToken = this.createAccessToken(user);
     const nextRefreshToken = await this.createRefreshToken(user);
 
-    return {
+    const tokenPayload = {
       token: accessToken,
       accessToken,
       refreshToken: nextRefreshToken,
       expiresIn: config.JWT_ACCESS_EXPIRES_IN,
       user: toPublicUser(user),
     };
+
+    await rotateRefreshToken(user._id.toString(), decoded.tokenId, tokenPayload, 30);
+
+    return tokenPayload;
   }
 
   async logout({ accessToken, refreshToken, userId }) {

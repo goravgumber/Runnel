@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, ArrowLeft, Home, RefreshCw } from "lucide-react";
 import Layout from "./components/Layout";
@@ -97,12 +97,10 @@ const NotFound = () => (
 );
 
 function AppContent() {
-  const location = useLocation();
-
   return (
     <AnimatePresence mode="wait">
       <Suspense fallback={<SuspenseFallback />}>
-        <Routes location={location} key={location.pathname}>
+        <Routes>
           {/* Public Auth Routes */}
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
