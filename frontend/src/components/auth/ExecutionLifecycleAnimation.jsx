@@ -9,52 +9,77 @@ import {
   ArrowLeftRight,
   Play,
   Pause,
+  AlertOctagon,
+  Clock,
+  Sparkles,
 } from "lucide-react";
 
-const STAGES_LOGIN = [
+// Narrative stages for Login (Horizontal Stepper)
+const LOGIN_LIFECYCLE_STAGES = [
   {
     id: "submitted",
     label: "Submitted",
     step: 1,
     title: "Enqueued into recovery buffer",
-    detail: "Idempotency key locked • Payload schema validated",
-    attempt: "Attempt 1",
+    detail: "Task payload accepted • Idempotency key locked",
+    attemptBadge: "Attempt 1",
+    badgeColor: "text-[#8DB89F] bg-[#133023] border-[#24543C]",
+    icon: Check,
+    iconColor: "text-[#52B788]",
+    statusText: "Queued",
   },
   {
     id: "running",
     label: "Running",
     step: 2,
     title: "Executing payment dispatch",
-    detail: "Contacting external webhook receiver",
-    attempt: "Attempt 1",
+    detail: "Worker active • Contacting external webhook receiver",
+    attemptBadge: "Attempt 1 • Running",
+    badgeColor: "text-[#60A5FA] bg-[#102A43] border-[#1D4ED8]/60",
+    icon: RotateCw,
+    iconColor: "text-[#60A5FA]",
+    statusText: "Processing",
   },
   {
     id: "failed",
     label: "Failed",
     step: 3,
-    title: "Transient error intercepted",
-    detail: "Upstream service timeout (504) • Preserving trace",
-    attempt: "Attempt 1",
+    title: "Downstream timeout intercepted",
+    detail: "504 Gateway Timeout caught • Stack trace preserved for replay",
+    attemptBadge: "Attempt 1 • Failed",
+    badgeColor: "text-[#F87171] bg-[#3B1214] border-[#DC2626]/60",
+    icon: AlertTriangle,
+    iconColor: "text-[#F87171]",
+    statusText: "Intercepted",
   },
   {
     id: "retrying",
     label: "Retrying",
     step: 4,
-    title: "Safe retry in progress",
-    detail: "Exponential backoff active • Attempt 2 scheduled",
-    attempt: "Attempt 2",
+    title: "Safe retry with exponential backoff",
+    detail: "Scheduling Attempt 2 • Deduplicated token avoids double-charge",
+    attemptBadge: "Attempt 2 • Retrying",
+    badgeColor: "text-[#FBBF24] bg-[#38260B] border-[#D97706]/60",
+    icon: RotateCcw,
+    iconColor: "text-[#FBBF24]",
+    statusText: "Backoff",
   },
   {
     id: "completed",
     label: "Completed",
     step: 5,
-    title: "Execution finished successfully",
-    detail: "Attempt 2 succeeded (200 OK) • State recorded",
-    attempt: "Attempt 2",
+    title: "Delivered successfully",
+    detail: "Task completed and verified on Attempt 2 • State recorded",
+    attemptBadge: "Attempt 2 • Verified",
+    badgeColor: "text-[#34D399] bg-[#0E3322] border-[#059669]/60",
+    icon: CheckCircle2,
+    iconColor: "text-[#34D399]",
+    statusText: "Resolved",
   },
 ];
 
-const STAGES_SIGNUP = [
+// Narrative stages for Signup (Vertical Simulation)
+const SIGNUP_LIFECYCLE_STAGES = [
   {
     id: "submitted",
     step: 1,
@@ -77,7 +102,7 @@ const STAGES_SIGNUP = [
     title: "Failed",
     desc: "Upstream drop caught; stack snapshot preserved for replay.",
     tag: "Timeout intercepted",
-    tagColor: "text-[#E05345]",
+    tagColor: "text-[#F87171]",
   },
   {
     id: "retrying",
@@ -85,7 +110,7 @@ const STAGES_SIGNUP = [
     title: "Retrying",
     desc: "Re-executed safely with deduplicated transaction token.",
     tag: "Backoff replay",
-    tagColor: "text-[#F59E0B]",
+    tagColor: "text-[#FBBF24]",
   },
   {
     id: "completed",
@@ -100,72 +125,27 @@ const STAGES_SIGNUP = [
 export default function ExecutionLifecycleAnimation({ mode = "login" }) {
   const [currentIndex, setCurrentIndex] = useState(mode === "signup" ? 1 : 1);
   const [isPaused, setIsPaused] = useState(false);
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
-  const stages = mode === "signup" ? STAGES_SIGNUP : STAGES_LOGIN;
+  const stages = mode === "signup" ? SIGNUP_LIFECYCLE_STAGES : LOGIN_LIFECYCLE_STAGES;
 
+  // Auto-advance through the narrative lifecycle
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setPrefersReducedMotion(mediaQuery.matches);
+    if (isPaused) return;
 
-    const handler = (e) => setPrefersReducedMotion(e.matches);
-    mediaQuery.addEventListener("change", handler);
-    return () => mediaQuery.removeEventListener("change", handler);
-  }, []);
-
-  useEffect(() => {
-    if (prefersReducedMotion || isPaused) return;
-
-    // 3.6s pause on Completed (index 4) before cycling back
-    const delay = currentIndex === stages.length - 1 ? 3600 : 2600;
+    // Longer pause on Completed (3.5s) to let user read the resolution
+    const delay = currentIndex === stages.length - 1 ? 3500 : 2500;
 
     const timer = setTimeout(() => {
       setCurrentIndex((prev) => (prev + 1) % stages.length);
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [currentIndex, prefersReducedMotion, isPaused, stages.length]);
+  }, [currentIndex, isPaused, stages.length]);
 
-  // Accessible Static Alternative for prefers-reduced-motion
-  if (prefersReducedMotion) {
-    return (
-      <div
-        className="w-full bg-[#0D241A] border border-[#1D4A36] rounded-xl p-4 sm:p-5 text-white"
-        aria-label="Execution lifecycle sequence: Submitted, Running, Failed, Retrying, Completed"
-      >
-        <div className="border-b border-[#1D4A36] pb-2.5 mb-3.5 flex items-center justify-between">
-          <span className="text-xs font-mono text-[#A7C8B5] uppercase tracking-wider">
-            Execution Lifecycle Overview
-          </span>
-          <span className="text-2xs font-mono text-[#74A889]">Accessible Mode</span>
-        </div>
-        <div className="space-y-2">
-          {stages.map((stage, idx) => (
-            <div
-              key={stage.id}
-              className="flex items-start gap-3 p-2 rounded-lg bg-[#143527]/70 border border-[#1E4C38]"
-            >
-              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#1F4E38] text-2xs font-mono text-[#A7C8B5]">
-                {idx + 1}
-              </div>
-              <div className="min-w-0 flex-1">
-                <span className="text-xs font-semibold text-[#E9F5EE]">
-                  {stage.title || stage.label}
-                </span>
-                <p className="text-2xs text-[#B2D0BF] mt-0.5">
-                  {stage.desc || stage.detail}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // -------------------------------------------------------------
+  // =============================================================
   // SIGNUP MODE: Vertical 5-Step Execution Lifecycle Simulation
-  // -------------------------------------------------------------
+  // Matches Stitch Create Account screen
+  // =============================================================
   if (mode === "signup") {
     return (
       <div
@@ -188,9 +168,9 @@ export default function ExecutionLifecycleAnimation({ mode = "login" }) {
             <button
               type="button"
               onClick={() => setIsPaused((prev) => !prev)}
-              className="p-1 text-[#8DB89F] hover:text-white rounded hover:bg-[#163828] transition-colors"
-              title={isPaused ? "Resume animation" : "Pause animation"}
-              aria-label={isPaused ? "Resume animation" : "Pause animation"}
+              className="p-1 text-[#8DB89F] hover:text-white rounded hover:bg-[#163828] transition-colors cursor-pointer"
+              title={isPaused ? "Resume simulation" : "Pause simulation"}
+              aria-label={isPaused ? "Resume simulation" : "Pause simulation"}
             >
               {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
             </button>
@@ -199,8 +179,10 @@ export default function ExecutionLifecycleAnimation({ mode = "login" }) {
 
         {/* 5 Vertical Step Rows */}
         <div className="space-y-1.5">
-          {STAGES_SIGNUP.map((stage, idx) => {
+          {SIGNUP_LIFECYCLE_STAGES.map((stage, idx) => {
             const isActive = idx === currentIndex;
+            const isPassed = idx < currentIndex;
+
             return (
               <div
                 key={stage.id}
@@ -210,23 +192,28 @@ export default function ExecutionLifecycleAnimation({ mode = "login" }) {
                 }}
                 className={`flex items-center justify-between p-2.5 rounded-lg transition-all duration-300 cursor-pointer ${
                   isActive
-                    ? "bg-[#163B2B] border border-[#2D6A4F] shadow-sm"
+                    ? "bg-[#163B2B] border border-[#2D6A4F] shadow-sm ring-1 ring-[#52B788]/30 scale-[1.01]"
                     : "bg-[#091B13]/60 border border-transparent hover:border-[#1E4B37] hover:bg-[#102B1F]"
                 }`}
               >
                 <div className="flex items-start gap-3 min-w-0 pr-2">
                   <div
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-2xs font-mono transition-colors ${
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-2xs font-mono transition-all ${
                       isActive
-                        ? "bg-[#2D6A4F] text-[#D8F3DC] font-bold ring-2 ring-[#52B788]/40"
-                        : "bg-[#183E2D] text-[#74A889]"
+                        ? "bg-[#2D6A4F] text-[#D8F3DC] font-bold ring-2 ring-[#52B788]/50"
+                        : isPassed
+                        ? "bg-[#1B4332] text-[#A7C8B5]"
+                        : "bg-[#143224] text-[#6E9E82]"
                     }`}
                   >
-                    {stage.step}
+                    {isPassed ? <Check className="w-3 h-3" /> : stage.step}
                   </div>
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold text-[#E9F5EE]">
-                      {stage.title}
+                    <div className="text-xs font-semibold text-[#E9F5EE] flex items-center gap-1.5">
+                      <span>{stage.title}</span>
+                      {isActive && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#52B788] animate-ping" />
+                      )}
                     </div>
                     <p className="text-2xs text-[#95C0A9] mt-0.5 leading-snug line-clamp-1">
                       {stage.desc}
@@ -235,7 +222,7 @@ export default function ExecutionLifecycleAnimation({ mode = "login" }) {
                 </div>
 
                 <div
-                  className={`text-2xs font-mono shrink-0 pl-2 ${
+                  className={`text-2xs font-mono shrink-0 pl-2 font-medium ${
                     isActive ? stage.tagColor : "text-[#6E9E82]"
                   }`}
                 >
@@ -249,10 +236,11 @@ export default function ExecutionLifecycleAnimation({ mode = "login" }) {
     );
   }
 
-  // -------------------------------------------------------------
-  // LOGIN MODE: Horizontal Task Lifecycle Stepper & Dispatch Subcard
-  // -------------------------------------------------------------
-  const activeLoginStage = STAGES_LOGIN[currentIndex];
+  // =============================================================
+  // LOGIN MODE: Horizontal Task Lifecycle Stepper & Live Subcard
+  // Matches Stitch Sign In screen
+  // =============================================================
+  const currentStage = LOGIN_LIFECYCLE_STAGES[currentIndex];
 
   return (
     <div
@@ -267,12 +255,12 @@ export default function ExecutionLifecycleAnimation({ mode = "login" }) {
         </div>
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center px-2 py-0.5 rounded text-2xs font-mono bg-[#163828] text-[#52B788] border border-[#2B664B]">
-            In Progress
+            {currentIndex === 4 ? "Resolved" : "In Progress"}
           </span>
           <button
             type="button"
             onClick={() => setIsPaused((prev) => !prev)}
-            className="p-1 text-[#8DB89F] hover:text-white rounded hover:bg-[#163828] transition-colors"
+            className="p-1 text-[#8DB89F] hover:text-white rounded hover:bg-[#163828] transition-colors cursor-pointer"
             title={isPaused ? "Resume animation" : "Pause animation"}
             aria-label={isPaused ? "Resume animation" : "Pause animation"}
           >
@@ -281,18 +269,18 @@ export default function ExecutionLifecycleAnimation({ mode = "login" }) {
         </div>
       </div>
 
-      {/* 5 Horizontal Stepper Nodes */}
+      {/* 5 Horizontal Stepper Nodes with connecting rail */}
       <div className="mb-5 px-1">
         <div className="relative flex items-center justify-between">
           {/* Background rail */}
           <div className="absolute top-3 left-4 right-4 -translate-y-1/2 h-0.5 bg-[#1B4332] -z-0" />
-          {/* Active track progress */}
+          {/* Active progress track */}
           <div
             className="absolute top-3 left-4 -translate-y-1/2 h-0.5 bg-[#52B788] transition-all duration-500 ease-out -z-0"
-            style={{ width: `${(currentIndex / (STAGES_LOGIN.length - 1)) * 88}%` }}
+            style={{ width: `${(currentIndex / (LOGIN_LIFECYCLE_STAGES.length - 1)) * 88}%` }}
           />
 
-          {STAGES_LOGIN.map((stage, idx) => {
+          {LOGIN_LIFECYCLE_STAGES.map((stage, idx) => {
             const isPassed = idx < currentIndex;
             const isCurrent = idx === currentIndex;
 
@@ -310,7 +298,7 @@ export default function ExecutionLifecycleAnimation({ mode = "login" }) {
                 <div
                   className={`w-6 h-6 rounded-full flex items-center justify-center text-2xs transition-all duration-300 ${
                     isCurrent
-                      ? "ring-4 ring-[#52B788]/25 bg-[#52B788] text-[#0D241A] font-bold scale-110"
+                      ? "ring-4 ring-[#52B788]/30 bg-[#52B788] text-[#0D241A] font-bold scale-110 shadow-md"
                       : isPassed
                       ? "bg-[#2D6A4F] text-[#D8F3DC]"
                       : "bg-[#102B1F] text-[#5A8E71] border border-[#204E38]"
@@ -319,7 +307,15 @@ export default function ExecutionLifecycleAnimation({ mode = "login" }) {
                   {isPassed ? (
                     <Check className="w-3.5 h-3.5" />
                   ) : isCurrent ? (
-                    <RotateCw className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: "3s" }} />
+                    idx === 1 ? (
+                      <RotateCw className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: "3s" }} />
+                    ) : idx === 2 ? (
+                      <AlertOctagon className="w-3.5 h-3.5" />
+                    ) : idx === 3 ? (
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5" />
+                    )
                   ) : idx === 2 ? (
                     <AlertTriangle className="w-3 h-3" />
                   ) : idx === 3 ? (
@@ -348,21 +344,33 @@ export default function ExecutionLifecycleAnimation({ mode = "login" }) {
       {/* Active Attempt Dispatch Subcard */}
       <div className="bg-[#081811] border border-[#1B4332] rounded-lg p-3 sm:p-3.5 flex items-center justify-between transition-all duration-300">
         <div className="flex items-start gap-3 min-w-0 pr-2">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#143527] border border-[#23583E] text-[#52B788] mt-0.5">
-            <RotateCw className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: "4s" }} />
+          <div
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#143527] border border-[#23583E] transition-colors mt-0.5 ${currentStage.iconColor}`}
+          >
+            {currentIndex === 1 ? (
+              <RotateCw className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: "3s" }} />
+            ) : currentIndex === 2 ? (
+              <AlertTriangle className="w-3.5 h-3.5" />
+            ) : currentIndex === 3 ? (
+              <RotateCcw className="w-3.5 h-3.5" />
+            ) : (
+              <Check className="w-3.5 h-3.5" />
+            )}
           </div>
           <div className="min-w-0">
-            <div className="text-xs font-semibold text-white leading-tight">
-              {activeLoginStage.title}
+            <div className="text-xs font-semibold text-white leading-tight flex items-center gap-1.5">
+              <span>{currentStage.title}</span>
             </div>
             <p className="text-2xs text-[#8DB89F] mt-0.5 leading-normal truncate">
-              {activeLoginStage.detail}
+              {currentStage.detail}
             </p>
           </div>
         </div>
 
-        <span className="shrink-0 text-2xs font-mono text-[#74A889] bg-[#133023] px-2 py-0.5 rounded border border-[#24543C]">
-          {activeLoginStage.attempt}
+        <span
+          className={`shrink-0 text-2xs font-mono px-2 py-0.5 rounded border transition-colors ${currentStage.badgeColor}`}
+        >
+          {currentStage.attemptBadge}
         </span>
       </div>
     </div>
