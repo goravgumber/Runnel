@@ -95,7 +95,7 @@ services:
       - runnel_prod_net
 
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:1.30.5-alpine
     container_name: runnel_nginx_prod
     restart: unless-stopped
     ports:

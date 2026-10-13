@@ -26,9 +26,9 @@ External Internet Traffic (Clients, Webhooks, Browsers)
                      ▼                           ▼
          ┌──────────────────────┐    ┌──────────────────────────────────┐
          │ Frontend (React SPA) │    │ Backend API & Worker Engine      │
-         │  • Port 80 internal  │    │  • Port 5000 internal            │
-         │  • Nginx 1.27 Alpine │    │  • Node.js 22 LTS / Express 4    │
-         │  • Client-side SPA   │    │  • BullMQ Queue Worker           │
+         │  • Port 80 internal    │    │  • Port 5000 internal            │
+         │  • Nginx 1.30.5 Alpine │    │  • Node.js 24 LTS / Express 4    │
+         │  • Client-side SPA     │    │  • BullMQ Queue Worker           │
          │    routing           │    │  • Stuck-Execution Recovery      │
          └──────────────────────┘    │  • Outbound Webhook Dispatcher   │
                                      └───────────┬──────────────┬───────┘
