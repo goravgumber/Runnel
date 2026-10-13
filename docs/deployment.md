@@ -75,11 +75,218 @@ External Internet Traffic (Clients, Webhooks, Browsers)
 | **Operational Risks** | Distributed multi-vendor failure modes; network latency hops between Vercel, API host, Atlas, and Redis; BullMQ persistent connection limits on serverless Redis providers. |
 
 ### Architectural Recommendation
-**Option A (Single Linux VPS with Production Compose)** is the **strongly recommended, lowest-risk path** for Runnel's staging and v1.0 release. It uses the exact, battle-tested orchestration already maintained in `docker-compose.prod.yml`, avoids cross-origin complexity, keeps MongoDB and Redis strictly private, and operates at predictable, minimal cost.
+**Option A (Single Linux VPS with Production Compose)** is the **strongly recommended, lowest-risk path** for Runnel's self-hosted production release. It uses the exact, battle-tested orchestration already maintained in `docker-compose.prod.yml`, avoids cross-origin complexity, keeps MongoDB and Redis strictly private, and operates at predictable, minimal cost.
 
 ---
 
-## 3. Environment Configuration Contract
+## 3. Free Portfolio Deployment (Zero-Cost Hosting on Render, Atlas & Upstash)
+
+This section provides the end-to-end operational guide for deploying Runnel as a **100% free ($0.00 budget)** public portfolio demonstration for recruiters and open-source contributors, without paid infrastructure, VPS instances, or purchased domain names.
+
+### Service Topology
+
+```text
+Recruiter Browser / Public Clients
+                │
+                │  HTTPS (Managed TLS)
+                ▼
+┌────────────────────────────────────────────────────────┐
+│ Frontend Static Site (Render Free Static Site)         │
+│  • Deployed from frontend/ root directory              │
+│  • Built via: npm ci && npm run build (dist/)          │
+│  • Automatic SPA rewrite: /* -> /index.html            │
+│  • Public URL: https://runnel-frontend-xxxx.onrender.com│
+└───────────────────────┬────────────────────────────────┘
+                        │
+                        │  HTTPS / WSS Cross-Origin
+                        ▼
+┌────────────────────────────────────────────────────────┐
+│ Backend Web Service (Render Free Web Service)          │
+│  • Deployed from backend/ root directory               │
+│  • Node.js 24 LTS, Express API + Socket.IO             │
+│  • Co-located BullMQ Queue Worker                      │
+│  • Co-located Stuck-Execution Recovery Scheduler       │
+│  • Health check: /health/live                          │
+│  • Public URL: https://runnel-backend-xxxx.onrender.com│
+└───────────┬────────────────────────────────┬───────────┘
+            │                                │
+            │ TLS Native TCP (rediss://)     │ TLS MongoDB SRV (mongodb+srv://)
+            ▼                                ▼
+┌──────────────────────────────┐ ┌──────────────────────────────┐
+│ Upstash Redis (Free Tier)    │ │ MongoDB Atlas (M0 Free Tier) │
+│  • Native Redis over TCP/TLS │ │  • MongoDB 8.0 cluster       │
+│  • 10,000 commands / day     │ │  • 512 MB storage            │
+│  • BullMQ & Distributed Lock │ │  • Shared RAM & CPU          │
+└──────────────────────────────┘ └──────────────────────────────┘
+```
+
+> [!NOTE]
+> **Single Node.js Process Preserved:** The Express API, Socket.IO gateway, BullMQ queue worker, and recovery engine share a single Node.js process. This design allows the entire backend to operate within Render's single free web service instance without incurring costs for dedicated background worker services.
+
+### Free-Tier Services & Prerequisites
+
+1. **Render Account (Free Tier):**
+   - Free Web Service: 512 MB RAM, shared CPU, automatic sleep after 15 minutes of inactivity.
+   - Free Static Site: 100 GB bandwidth / month, global CDN edge, automatic Let's Encrypt HTTPS.
+2. **MongoDB Atlas Account (Free M0 Sandbox):**
+   - Cluster tier: M0 Sandbox (512 MB storage, shared RAM, MongoDB 8.0).
+   - Region: Select an AWS region close to your Render deployment (e.g., `us-west-2` Oregon or `eu-central-1` Frankfurt).
+3. **Upstash Redis Account (Free Tier):**
+   - Free plan: 10,000 commands per day, maximum 256 MB storage.
+   - Connection type: Native Redis TCP over TLS (`rediss://...`).
+
+---
+
+### Step-by-Step Provisioning Guide
+
+#### Step 1: Configure MongoDB Atlas (Free M0 Cluster)
+
+1. Log in to [MongoDB Atlas](https://cloud.mongodb.com/).
+2. Click **Create Cluster**, choose the **M0 Free (Shared)** tier, and select the AWS region matching your backend (e.g. `us-west-2` Oregon).
+3. Under **Security → Database Access**:
+   - Create a new Database User (e.g. `runnel_user`).
+   - Assign authentication method: **Password** (generate a secure 32-character random string).
+   - Assign database role: **Read and write to any database** or specifically `readWrite` on `runnel`.
+4. Under **Security → Network Access**:
+   - Click **Add IP Address**.
+   - Select **Allow Access from Anywhere (`0.0.0.0/0`)**.
+   - *Security Note:* Render's free tier uses dynamic outbound IP addresses that shift across shared hosting nodes. While `0.0.0.0/0` is necessary for connectivity, security is maintained through SCRAM-SHA-256 authentication, strict password complexity, and TLS encryption in transit.
+5. Click **Connect → Drivers → Node.js** and copy the connection string:
+   ```text
+   mongodb+srv://runnel_user:<PASSWORD>@cluster0.abcde.mongodb.net/runnel?retryWrites=true&w=majority
+   ```
+
+#### Step 2: Configure Upstash Redis (Free Native TCP)
+
+1. Log in to the [Upstash Console](https://console.upstash.com/).
+2. Click **Create Database**, select the free tier, and choose a region close to your Render service.
+3. In the database dashboard, navigate to the **Connect** tab.
+4. Select **ioredis / Node.js** (or standard Redis TCP) to view the native connection string:
+   ```text
+   rediss://default:<PASSWORD>@<ENDPOINT>.upstash.io:6379
+   ```
+5. **Critical Caveat:** Do **not** use the `@upstash/redis` REST API or copy the `UPSTASH_REDIS_REST_URL`. Runnel's queue orchestration relies on **BullMQ**, which requires a persistent Redis TCP connection with blocking command support (`BRPOPLPUSH`) and pub/sub. The `rediss://` scheme automatically activates TLS in `ioredis`.
+
+---
+
+### Two-Stage Deployment Sequence on Render
+
+Because Vite bakes frontend environment variables into static bundles at **build time**, and because Render assigns random hostname subdomains upon service creation, follow this two-stage deployment order:
+
+#### Stage 1: Deploy Backend Web Service (`runnel-backend`)
+
+1. In the Render Dashboard, click **New + → Web Service**.
+2. Connect your GitHub repository: `https://github.com/goravgumber/Runnel`.
+3. Configure settings:
+   - **Name:** `runnel-backend`
+   - **Region:** Oregon (US West) or Frankfurt (EU Central)
+   - **Branch:** `develop` or your release branch
+   - **Root Directory:** `backend`
+   - **Runtime:** `Node`
+   - **Build Command:** `npm ci`
+   - **Start Command:** `node server.js`
+   - **Instance Type:** `Free` (0.1 CPU, 512 MB RAM)
+4. Under **Advanced → Health Check Path**, enter: `/health/live`.
+5. Under **Environment Variables**, define:
+
+| Key | Value | Description |
+| :--- | :--- | :--- |
+| `NODE_ENV` | `production` | Production mode |
+| `MONGO_URI` | `mongodb+srv://...` | Atlas connection string from Step 1 |
+| `REDIS_URL` | `rediss://...` | Upstash native TCP/TLS URL from Step 2 |
+| `JWT_SECRET` | *(Click "Generate" or paste 32+ hex chars)* | High-entropy session secret |
+| `ENABLE_DEMO_HANDLERS` | `false` | Keeps execution engine secure |
+| `RATE_LIMIT_WINDOW_MS` | `900000` | 15 minutes window |
+| `RATE_LIMIT_MAX` | `1000` | 1000 requests per IP |
+| `EXECUTION_RATE_LIMIT_WINDOW_MS` | `60000` | 1 minute window |
+| `EXECUTION_RATE_LIMIT_MAX` | `60` | 60 submissions / user / minute |
+| `MAX_CONCURRENT_EXECUTIONS_PER_USER` | `25` | Concurrency ceiling |
+| `RECOVERY_ENABLED` | `true` | Automated reconciliation engine |
+
+6. Click **Create Web Service**. Wait 2–3 minutes for the build to finish.
+7. Once deployed, copy your backend's assigned public URL from the top of the dashboard:
+   `https://runnel-backend-xxxx.onrender.com`
+
+#### Stage 2: Deploy Frontend Static Site (`runnel-frontend`)
+
+1. In the Render Dashboard, click **New + → Static Site**.
+2. Connect the same GitHub repository.
+3. Configure settings:
+   - **Name:** `runnel-frontend`
+   - **Branch:** `develop` or your release branch
+   - **Root Directory:** `frontend`
+   - **Build Command:** `npm ci && npm run build`
+   - **Publish Directory:** `dist`
+4. Under **Redirects / Rewrites**, add the Single Page Application rewrite rule:
+   - **Type:** `Rewrite`
+   - **Source:** `/*`
+   - **Destination:** `/index.html`
+5. Under **Environment Variables**, configure:
+
+| Key | Value | Description |
+| :--- | :--- | :--- |
+| `VITE_API_URL` | `https://runnel-backend-xxxx.onrender.com` | Exact backend URL from Stage 1 |
+| `VITE_SOCKET_URL` | `https://runnel-backend-xxxx.onrender.com` | Socket.IO gateway URL |
+| `VITE_ENABLE_DEMO_DISPATCHER` | `false` | Production UI safety |
+
+6. Click **Create Static Site**.
+7. Once deployed, copy your frontend's assigned public URL:
+   `https://runnel-frontend-xxxx.onrender.com`
+
+#### Stage 3: Wire Frontend Origin to Backend CORS
+
+1. Return to the `runnel-backend` service in the Render Dashboard.
+2. Under **Environment**, add:
+   - `FRONTEND_URL`: `https://runnel-frontend-xxxx.onrender.com` (exact frontend URL without trailing slash)
+   - `PUBLIC_API_URL`: `https://runnel-backend-xxxx.onrender.com`
+3. Click **Save Changes**. Render will automatically redeploy the backend with updated CORS configuration.
+
+---
+
+### Reproducible Render Blueprint (`render.yaml`)
+
+As an alternative to manual dashboard setup, Runnel provides a root-level `render.yaml` Blueprint. When creating an environment via **Blueprints** on Render:
+- Services and build scripts are automatically discovered.
+- Secrets (`MONGO_URI`, `REDIS_URL`, `JWT_SECRET`) are configured as `sync: false` to ensure credentials are never committed.
+- The two-stage URL binding documented above must still be followed to cross-reference frontend and backend URLs after initial provisioning.
+
+---
+
+### Free-Tier Operational Characteristics & Cold Starts
+
+| Characteristic | Free Tier Reality | Runnel Mitigation |
+| :--- | :--- | :--- |
+| **Inactivity Spin-Down** | Web services sleep after 15 minutes without inbound HTTP requests. | Frontend detects 502/network gateway latency and probes `/health/live`. |
+| **Cold-Start Latency** | Booting Node.js from cold state takes **40 to 60 seconds**. | Displays clear banner: *"Waking up the demo backend — this may take up to a minute on the free hosting tier."* |
+| **Mutation Safety** | Auto-retrying state changes during spin-up could duplicate work. | **Never auto-retries mutations:** Sign-up, execution submission, retry, and cancellation are strictly user-initiated. Read-only stats auto-sync once online. |
+| **Background Processing** | BullMQ workers do not process jobs while the container is spun down. | Queued executions remain safe in Upstash Redis and resume immediately when the service wakes up. |
+| **Daily Command Limits** | Upstash Free allows 10,000 commands / day. | Polling intervals are bounded (12s–30s) to comfortably stay within quota. |
+| **Zero-Cost Safeguards** | Platforms may offer paid upgrades or add-on disks. | Runnel requires **no paid addons**. Do not attach persistent disks or select starter/standard instances. |
+
+---
+
+### Free Portfolio Verification Sequence
+
+After deployment, test the public deployment with this checklist:
+
+1. **Verify Backend Health:**
+   ```bash
+   curl -fsS https://runnel-backend-xxxx.onrender.com/health/live
+   # Returns: {"status":"live","uptime":...}
+   ```
+2. **Open Frontend URL:** Navigate to `https://runnel-frontend-xxxx.onrender.com`.
+3. **Register Demo Account:** Create a new user with username and password.
+4. **Inspect Overview Dashboard:** Verify stat counters load and live gateway status shows *Gateway Online*.
+5. **Submit Test Execution:**
+   - In Settings or via terminal, copy the sample cURL command with your JWT token.
+   - Dispatch an `echo` execution to `https://runnel-backend-xxxx.onrender.com/api/v1/executions`.
+   - Verify the execution appears in the **Execution Inbox** and transitions from `pending` → `running` → `completed`.
+6. **Test Manual Retry:** Trigger a retry on a test execution; verify attempt history increments atomically.
+7. **Simulate Inactivity / Wake-Up:** Allow the backend to sleep for 16 minutes. Open the frontend and verify the wake-up banner guides the user smoothly through the cold start.
+
+---
+
+## 4. Production Environment Configuration Contract
 
 Every deployment requires a production environment file (`.env.production` or host environment variables). **Never commit production environment files to source control.**
 
@@ -112,7 +319,7 @@ Every deployment requires a production environment file (`.env.production` or ho
 
 ---
 
-## 4. Operator Step-by-Step Deployment Runbook
+## 5. Operator Step-by-Step VPS Deployment Runbook
 
 ### Step 1: DNS & Domain Setup
 Create an **A Record** pointing your domain or subdomain to the public IPv4 address of the VPS:
@@ -232,7 +439,7 @@ sudo crontab -l 2>/dev/null | { cat; echo "0 3 1,15 * * certbot renew --webroot 
 
 ---
 
-## 5. Backup, Disaster Recovery & Rollback
+## 6. Backup, Disaster Recovery & Rollback
 
 ### Automated MongoDB Daily Backup
 Create `/etc/cron.daily/runnel-backup`:
@@ -279,7 +486,7 @@ curl -fsS https://runnel.yourdomain.com/health/ready
 
 ---
 
-## 6. External Staging Verification Checklist
+## 7. Production VPS Verification Checklist
 
 Perform this 10-point test sequence once the staging stack is live at its public HTTPS URL:
 

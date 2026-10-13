@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { userAPI, authAPI } from "../services/api";
+import { getApiBaseUrl } from "../utils/url";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -58,7 +59,7 @@ export default function Settings() {
     fetchSettings();
   }, []);
 
-  const apiBaseUrl = typeof window !== "undefined" ? window.location.origin : "http://localhost:5000";
+  const apiBaseUrl = getApiBaseUrl();
 
   const curlCommand = `curl -X POST ${apiBaseUrl}/api/v1/executions \\
   -H "Authorization: Bearer <YOUR_API_TOKEN>" \\

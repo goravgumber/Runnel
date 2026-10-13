@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowLeft, Home, RefreshCw } from "lucide-react";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import BackendWakeupBanner from "./components/BackendWakeupBanner";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -207,8 +208,9 @@ class ErrorBoundary extends React.Component {
 export default function App() {
   return (
     <ErrorBoundary>
-      <div className="h-full min-h-full bg-canvas text-charcoal transition-colors duration-300 font-sans">
+      <div className="h-full min-h-full bg-canvas text-charcoal transition-colors duration-300 font-sans flex flex-col">
         <AuthProvider>
+          <BackendWakeupBanner />
           <AppContent />
         </AuthProvider>
       </div>

@@ -25,12 +25,14 @@ import StatCard from "../components/ui/StatCard";
 import StatusBadge from "../components/ui/StatusBadge";
 import Button from "../components/ui/Button";
 import EmptyState from "../components/ui/EmptyState";
+import { getSocketUrl, getApiBaseUrl } from "../utils/url";
+import { backendWakeup } from "../services/backendWakeup";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
+const SOCKET_URL = getSocketUrl();
 const showDemoDispatcher =
   import.meta.env.DEV ||
   import.meta.env.VITE_ENABLE_DEMO_DISPATCHER === "true";
-const apiBaseUrl = typeof window !== "undefined" ? window.location.origin : "http://localhost:5000";
+const apiBaseUrl = getApiBaseUrl();
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -77,6 +79,14 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadDashboardData();
+  }, [loadDashboardData]);
+
+  // Auto-refresh dashboard metrics when backend wakes up from sleep
+  useEffect(() => {
+    const unsubscribe = backendWakeup.onWakeup(() => {
+      loadDashboardData();
+    });
+    return unsubscribe;
   }, [loadDashboardData]);
 
   // Socket.IO for real-time updates

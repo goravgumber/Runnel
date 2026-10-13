@@ -34,9 +34,26 @@ const swaggerSpec = require("./docs/swaggerSpec");
 const app = express();
 const server = http.createServer(app);
 let isShuttingDown = false;
+
+// Normalize CORS origin: trim trailing slashes to prevent mismatches
+const resolveCorsOrigin = () => {
+  if (config.NODE_ENV !== "production") return true;
+  if (!config.FRONTEND_URL) return false;
+  const origins = config.FRONTEND_URL.split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean);
+  if (origins.length === 1) return origins[0];
+  return (origin, callback) => {
+    if (!origin || origins.includes(origin.replace(/\/+$/, ""))) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS policy violation: Origin not allowed"));
+    }
+  };
+};
+const corsOrigin = resolveCorsOrigin();
+
 const io = new Server(server, {
   cors: {
-    origin: config.NODE_ENV === "production" ? config.FRONTEND_URL : true,
+    origin: corsOrigin,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   },
@@ -65,7 +82,7 @@ const apiLimiter = rateLimit({
   },
 });
 
-app.use(cors({ origin: config.NODE_ENV === "production" ? config.FRONTEND_URL : true, credentials: true }));
+app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(apiLimiter);
 app.use(helmet());
 app.use(express.json({ limit: config.MAX_PAYLOAD_SIZE || "2mb" }));

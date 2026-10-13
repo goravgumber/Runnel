@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { toApiPath, unwrapApiResponse, getFreshToken } from "../services/api";
+import { backendWakeup } from "../services/backendWakeup";
 
 const AuthContext = createContext();
 
@@ -67,10 +68,24 @@ export const AuthProvider = ({ children }) => {
               // Refresh failed, fall through to clear
             }
           }
+          throw new Error("Token validation failed");
         }
+
+        // On 502/503/504 gateway responses (backend cold-starting on free tier),
+        // do NOT wipe auth state. Trigger wakeup tracking instead.
+        if (backendWakeup.isWakeupCandidate(res.status)) {
+          backendWakeup.startWakeupTracking();
+          return;
+        }
+
         throw new Error("Token validation failed");
       }
     } catch (_error) {
+      // If network error (backend asleep on free tier), do NOT wipe saved session!
+      if (backendWakeup.isWakeupCandidate(0, _error)) {
+        backendWakeup.startWakeupTracking();
+        return;
+      }
       console.warn("Token validation failed, clearing auth data");
       clearAuthData();
     }
@@ -95,6 +110,17 @@ export const AuthProvider = ({ children }) => {
 
     setLoading(false);
   }, [clearAuthData, validateToken]);
+
+  // If backend was sleeping and wakes up, quietly re-validate session without disruption
+  useEffect(() => {
+    const unsubscribe = backendWakeup.onWakeup(() => {
+      const currentToken = localStorage.getItem("token");
+      if (currentToken) {
+        validateToken(currentToken);
+      }
+    });
+    return unsubscribe;
+  }, [validateToken]);
 
   const extractErrorMessage = (payload, fallbackMessage) => {
     if (!payload) return fallbackMessage;
@@ -135,6 +161,10 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ username, password }),
       });
 
+      if (backendWakeup.isWakeupCandidate(res.status)) {
+        backendWakeup.startWakeupTracking();
+      }
+
       const payload = await res.json().catch(() => ({}));
       const data = unwrapApiResponse(payload);
 
@@ -145,6 +175,8 @@ export const AuthProvider = ({ children }) => {
             ? "Invalid username or password. Please try again."
             : res.status === 429
             ? "Too many sign-in attempts. Please try again later."
+            : res.status >= 500
+            ? "Runnel backend service is currently waking up or unavailable. Please wait a moment and try again."
             : "Sign in failed. Please try again."
         );
         throw new Error(errorDetail);
@@ -161,11 +193,12 @@ export const AuthProvider = ({ children }) => {
       return { success: true, data };
 
     } catch (err) {
-      const isNetwork =
-        err.name === "TypeError" ||
-        /fetch|network|connection|econnrefused|failed to fetch/i.test(err.message || "");
-      const errorMessage = isNetwork
-        ? "Runnel backend service is currently unreachable. Please verify your connection."
+      const isWakeup = backendWakeup.isWakeupCandidate(0, err);
+      if (isWakeup) {
+        backendWakeup.startWakeupTracking();
+      }
+      const errorMessage = isWakeup
+        ? "Runnel backend service is currently waking up on the free tier. Please wait up to a minute."
         : (err.message || "Login failed");
       setAuthError(errorMessage);
       return { success: false, error: errorMessage };
@@ -182,6 +215,10 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ username, password }),
       });
 
+      if (backendWakeup.isWakeupCandidate(res.status)) {
+        backendWakeup.startWakeupTracking();
+      }
+
       const payload = await res.json().catch(() => ({}));
 
       if (!res.ok) {
@@ -191,6 +228,8 @@ export const AuthProvider = ({ children }) => {
             ? "Username already taken. Please choose another username or sign in."
             : res.status === 429
             ? "Too many registration attempts. Please try again later."
+            : res.status >= 500
+            ? "Runnel backend service is currently waking up or unavailable. Please wait a moment and try again."
             : "Signup failed. Please try again."
         );
         throw new Error(errorDetail);
@@ -199,11 +238,12 @@ export const AuthProvider = ({ children }) => {
       return { success: true, data: payload };
 
     } catch (err) {
-      const isNetwork =
-        err.name === "TypeError" ||
-        /fetch|network|connection|econnrefused|failed to fetch/i.test(err.message || "");
-      const errorMessage = isNetwork
-        ? "Runnel backend service is currently unreachable. Please verify your connection."
+      const isWakeup = backendWakeup.isWakeupCandidate(0, err);
+      if (isWakeup) {
+        backendWakeup.startWakeupTracking();
+      }
+      const errorMessage = isWakeup
+        ? "Runnel backend service is currently waking up on the free tier. Please wait up to a minute."
         : (err.message || "Signup failed");
       setAuthError(errorMessage);
       return { success: false, error: errorMessage };
