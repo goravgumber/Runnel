@@ -159,7 +159,7 @@ const startServer = async () => {
       logger.info("MongoDB connected successfully");
     } catch (dbErr) {
       if (process.env.NODE_ENV !== "production") {
-        logger.warn(`Could not connect to external MongoDB at ${config.MONGO_URI}: ${dbErr.message}. Starting embedded MongoMemoryServer for development...`);
+        logger.warn(`Could not connect to external MongoDB: ${dbErr.message}. Starting embedded MongoMemoryServer for development...`);
         const { MongoMemoryServer } = require("mongodb-memory-server");
         const mongod = await MongoMemoryServer.create();
         const memUri = mongod.getUri();
@@ -204,7 +204,11 @@ const startServer = async () => {
       logger.info("Runnel Backend Server started", { port, nodeEnv: config.NODE_ENV });
     });
   } catch (error) {
-    logger.error("Server startup failed", error);
+    logger.error(`Server startup failed: ${error?.message || error}`, {
+      name: error?.name,
+      code: error?.code,
+      stack: error?.stack,
+    });
     process.exit(1);
   }
 };
@@ -228,7 +232,11 @@ const shutdown = async (signal) => {
       process.exit(0);
     });
   } catch (error) {
-    logger.error("Shutdown error", error);
+    logger.error("Shutdown error", {
+      message: error?.message || String(error),
+      name: error?.name,
+      stack: error?.stack,
+    });
     process.exit(1);
   }
 };
@@ -237,11 +245,20 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
 process.on("unhandledRejection", (reason) => {
-  logger.error("Unhandled rejection detected", reason);
+  logger.error(`Unhandled rejection detected: ${reason?.message || reason}`, {
+    name: reason?.name || "UnhandledRejection",
+    code: reason?.code,
+    stack: reason?.stack,
+  });
 });
 
 process.on("uncaughtException", (error) => {
-  logger.error("Uncaught exception detected", error);
+  logger.error(`Uncaught exception detected: ${error?.message || error}`, {
+    name: error?.name || "UncaughtException",
+    code: error?.code,
+    stack: error?.stack,
+  });
+  process.exit(1);
 });
 
 if (require.main === module) {
