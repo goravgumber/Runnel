@@ -77,6 +77,7 @@ if (!isTestWithoutRedis) {
   const memoryStore = new Map();
   redisClient = {
     status: "end",
+    isTestStub: true,
     on: () => {},
     blacklistToken: async (token) => {
       memoryStore.set(`blacklist:${token}`, "true");

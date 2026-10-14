@@ -20,14 +20,17 @@ const errorHandler = (err, req, res, next) => {
     message = `${field.charAt(0).toUpperCase() + field.slice(1)} already taken`;
   }
 
-  let errorCode = errorCodes.INTERNAL_ERROR;
-  if (statusCode === 400) errorCode = errorCodes.BAD_REQUEST;
+  let errorCode = err.errorCode || errorCodes.INTERNAL_ERROR;
+  if (err.errorCode) {
+    errorCode = err.errorCode;
+  } else if (statusCode === 400) errorCode = errorCodes.BAD_REQUEST;
   else if (statusCode === 401) errorCode = errorCodes.UNAUTHORIZED;
   else if (statusCode === 403) errorCode = errorCodes.FORBIDDEN;
   else if (statusCode === 404) errorCode = errorCodes.NOT_FOUND;
   else if (statusCode === 409) errorCode = errorCodes.CONFLICT;
+  else if (statusCode === 503) errorCode = errorCodes.SERVICE_UNAVAILABLE;
 
-  if (err.message && err.message.includes("Validation failed")) {
+  if (err.message && err.message.includes("Validation failed") && !err.errorCode) {
     errorCode = errorCodes.VALIDATION_ERROR;
   }
 
