@@ -57,10 +57,10 @@ describe("Production Logger Configuration & Transports", () => {
     // Simulate formatting an entry containing database and cache connection strings
     const rawEntry = {
       level: "error",
-      message: "Connection failed to mongodb+srv://runnel_admin:SuperSecretPass123@cluster0.abcde.mongodb.net/runnel",
-      stack: "Error: connect failed\n  at connect (rediss://default:RedisSecret456@host.upstash.io:6379)",
+      message: "Connection failed to mongodb+srv://mock-test-user:mock-test-password-123@mock-db-cluster.invalid/runnel-test",
+      stack: "Error: connect failed\n  at connect (rediss://mock-redis-user:mock-redis-password-456@mock-cache-endpoint.invalid:6379)",
       meta: {
-        rawMongo: "mongodb://service_user:MongoPass789@127.0.0.1:27017/runnel",
+        rawMongo: "mongodb://mock-local-user:mock-local-password-789@mock-local-host.invalid:27017/runnel-test",
       },
     };
 
@@ -68,32 +68,32 @@ describe("Production Logger Configuration & Transports", () => {
 
     assert.ok(transformed, "Log entry should be transformed");
     assert.ok(
-      !transformed.message.includes("SuperSecretPass123"),
-      "Database password must be redacted from message"
+      !transformed.message.includes("mock-test-password-123"),
+      "Synthetic database password must be redacted from message"
     );
     assert.match(
       transformed.message,
-      /mongodb\+srv:\/\/runnel_admin:\[REDACTED\]@/,
+      /mongodb\+srv:\/\/mock-test-user:\[REDACTED\]@mock-db-cluster\.invalid\/runnel-test/,
       "Database credentials should be masked as [REDACTED]"
     );
 
     assert.ok(
-      !transformed.stack.includes("RedisSecret456"),
-      "Redis password must be redacted from stack trace"
+      !transformed.stack.includes("mock-redis-password-456"),
+      "Synthetic Redis password must be redacted from stack trace"
     );
     assert.match(
       transformed.stack,
-      /rediss:\/\/default:\[REDACTED\]@/,
+      /rediss:\/\/mock-redis-user:\[REDACTED\]@mock-cache-endpoint\.invalid:6379/,
       "Redis credentials should be masked as [REDACTED]"
     );
 
     assert.ok(
-      !transformed.meta.rawMongo.includes("MongoPass789"),
-      "Nested metadata credentials must be redacted"
+      !transformed.meta.rawMongo.includes("mock-local-password-789"),
+      "Nested metadata synthetic credentials must be redacted"
     );
     assert.match(
       transformed.meta.rawMongo,
-      /mongodb:\/\/service_user:\[REDACTED\]@/,
+      /mongodb:\/\/mock-local-user:\[REDACTED\]@mock-local-host\.invalid:27017\/runnel-test/,
       "Nested MongoDB URI must be masked as [REDACTED]"
     );
   });
