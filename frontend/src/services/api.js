@@ -17,6 +17,30 @@ export const unwrapApiResponse = (payload) => {
   return payload;
 };
 
+export async function performBoundedAuthRequest(endpoint, body, options = {}) {
+  const timeoutMs = options.timeoutMs || 60000;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(toApiPath(endpoint), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const payload = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, payload };
+  } catch (err) {
+    if (err.name === "AbortError") {
+      return { ok: false, status: 408, timedOut: true, error: "Request timed out" };
+    }
+    return { ok: false, status: 0, networkError: true, error: err.message };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 // Singleton in-flight refresh promise to prevent duplicate concurrent refresh requests
 let refreshPromise = null;
 

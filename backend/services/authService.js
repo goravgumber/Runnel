@@ -53,7 +53,15 @@ class AuthService {
       { expiresIn: config.JWT_REFRESH_EXPIRES_IN }
     );
 
-    await storeRefreshToken(user._id.toString(), tokenId, REFRESH_TTL_SECONDS);
+    const stored = await storeRefreshToken(user._id.toString(), tokenId, REFRESH_TTL_SECONDS);
+    if (!stored) {
+      throw new AppError(
+        "Authentication service temporarily unavailable. Required session state could not be persisted.",
+        503,
+        null,
+        "SERVICE_UNAVAILABLE"
+      );
+    }
     return token;
   }
 
@@ -151,6 +159,15 @@ class AuthService {
     }
 
     const tokenStatus = await getRefreshTokenStatus(user._id.toString(), decoded.tokenId);
+    if (tokenStatus.status === "error") {
+      throw new AppError(
+        "Authentication service temporarily unavailable. Please try again shortly.",
+        503,
+        null,
+        "SERVICE_UNAVAILABLE"
+      );
+    }
+
     if (tokenStatus.status === "rotated" && tokenStatus.successor) {
       return tokenStatus.successor;
     }
@@ -171,7 +188,15 @@ class AuthService {
       user: toPublicUser(user),
     };
 
-    await rotateRefreshToken(user._id.toString(), decoded.tokenId, tokenPayload, 30);
+    const rotated = await rotateRefreshToken(user._id.toString(), decoded.tokenId, tokenPayload, 30);
+    if (!rotated) {
+      throw new AppError(
+        "Authentication service temporarily unavailable. Could not rotate session state.",
+        503,
+        null,
+        "SERVICE_UNAVAILABLE"
+      );
+    }
 
     return tokenPayload;
   }

@@ -1,7 +1,7 @@
 const { rateLimit, ipKeyGenerator } = require("express-rate-limit");
-const RedisStore = require("rate-limit-redis").default;
+const { createResilientRateLimitStore } = require("./resilientRateLimitStore");
 const redisClient = require("../config/redis");
-
+const logger = require("../config/logger");
 const config = require("../config/env");
 
 const generateExecutionKey = (req) => {
@@ -12,7 +12,7 @@ const generateExecutionKey = (req) => {
 };
 
 const createLimiter = (options) => {
-  if (process.env.NODE_ENV === "test") {
+  if (process.env.NODE_ENV === "test" && !process.env.TEST_RATE_LIMITER && !options?.forceEnable) {
     return (_req, _res, next) => next();
   }
   const opts = typeof options === "number" ? { limit: options } : options;
@@ -28,13 +28,12 @@ const createLimiter = (options) => {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: keyGenerator || undefined,
-    store:
-      redisClient && typeof redisClient.call === "function"
-        ? new RedisStore({
-            prefix,
-            sendCommand: (...args) => redisClient.call(...args),
-          })
-        : undefined,
+    store: createResilientRateLimitStore({
+      prefix,
+      windowMs,
+      redisClient,
+      logger,
+    }),
     handler: (_req, res) => {
       res.status(429).json({
         success: false,
@@ -75,5 +74,6 @@ module.exports = {
   registerLimiter,
   executionSubmitLimiter,
   generateExecutionKey,
+  createLimiter,
 };
 

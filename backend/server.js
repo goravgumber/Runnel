@@ -60,7 +60,7 @@ const io = new Server(server, {
 });
 
 const traceMiddleware = require("./middleware/traceMiddleware");
-const RedisStore = require("rate-limit-redis").default;
+const { createResilientRateLimitStore } = require("./middleware/resilientRateLimitStore");
 const redisClient = require("./config/redis");
 
 app.use(requestLogger);
@@ -73,9 +73,12 @@ const apiLimiter = rateLimit({
   max: config.RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
-  store: redisClient ? new RedisStore({
-    sendCommand: (...args) => redisClient.call(...args),
-  }) : undefined,
+  store: createResilientRateLimitStore({
+    prefix: "rate-limit:api:",
+    windowMs: config.RATE_LIMIT_WINDOW_MS,
+    redisClient,
+    logger,
+  }),
   message: {
     status: "fail",
     message: "Too many requests from this IP, please try again later.",
