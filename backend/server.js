@@ -112,13 +112,44 @@ const configureRoutes = () => {
   // Bull Board for Runnel Executions
   const serverAdapter = new ExpressAdapter();
   serverAdapter.setBasePath("/admin/queues");
-  createBullBoard({
-    queues: [
-      new BullMQAdapter(getRunnelQueue()),
-    ],
+
+  const board = createBullBoard({
+    queues: [],
     serverAdapter,
   });
-  app.use("/admin/queues", requireRole("admin"), serverAdapter.getRouter());
+
+  let isRunnelQueueRegistered = false;
+  const ensureQueueRegistered = () => {
+    if (isRunnelQueueRegistered) return true;
+    const queue = getRunnelQueue();
+    if (queue) {
+      board.addQueue(new BullMQAdapter(queue));
+      isRunnelQueueRegistered = true;
+      logger.info("[BullBoard] Execution queue registered on Bull Board");
+      return true;
+    }
+    return false;
+  };
+
+  // Attempt initial registration if queue is already available during route setup
+  ensureQueueRegistered();
+
+  app.use(
+    "/admin/queues",
+    requireRole("admin"),
+    (req, res, next) => {
+      const queueReady = ensureQueueRegistered();
+      if (!queueReady) {
+        return res.status(503).json({
+          status: "fail",
+          code: "QUEUE_UNAVAILABLE",
+          message: "Queue system is temporarily unavailable. Background processing and metrics will resume once Redis reconnects.",
+        });
+      }
+      next();
+    },
+    serverAdapter.getRouter()
+  );
 
   app.get("/", (req, res) => {
     res.json({
@@ -152,8 +183,6 @@ const startServer = async () => {
   try {
     try {
       await mongoose.connect(config.MONGO_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
         serverSelectionTimeoutMS: 2000,
       });
       logger.info("MongoDB connected successfully");

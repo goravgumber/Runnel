@@ -1,8 +1,15 @@
-const rateLimit = require("express-rate-limit");
+const { rateLimit, ipKeyGenerator } = require("express-rate-limit");
 const RedisStore = require("rate-limit-redis").default;
 const redisClient = require("../config/redis");
 
 const config = require("../config/env");
+
+const generateExecutionKey = (req) => {
+  if (req.user?.id) {
+    return `user:${req.user.id}`;
+  }
+  return `ip:${ipKeyGenerator(req.ip)}`;
+};
 
 const createLimiter = (options) => {
   if (process.env.NODE_ENV === "test") {
@@ -60,12 +67,13 @@ const executionSubmitLimiter = createLimiter({
   prefix: "rate-limit:exec-submit:",
   windowMs: config.EXECUTION_RATE_LIMIT_WINDOW_MS || 60000,
   message: "Execution submission quota exceeded. Please slow down your request rate.",
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: generateExecutionKey,
 });
 
 module.exports = {
   loginLimiter,
   registerLimiter,
   executionSubmitLimiter,
+  generateExecutionKey,
 };
 
